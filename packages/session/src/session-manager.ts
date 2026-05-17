@@ -5,6 +5,7 @@ import {
   type AgentSessionEvent,
   type AgentSessionEventPayload,
   type AgentSessionId,
+  type AgentSessionModalityBinding,
   type AgentSessionModalityId,
   type AgentSessionState
 } from "@exocortex/protocol";
@@ -17,7 +18,7 @@ export interface CreateAgentSessionInput {
   goal: string;
   title?: string;
   runtime?: AgentRuntimeRef;
-  modalityIds?: AgentSessionModalityId[];
+  modalityBindings?: AgentSessionModalityBinding[];
   metadata?: Record<string, unknown>;
 }
 
@@ -28,6 +29,7 @@ export interface AgentSessionManagerOptions {
 
 export class AgentSessionManager {
   private readonly sessions = new Map<AgentSessionId, AgentSession>();
+  private readonly bindings = new Map<AgentSessionId, AgentSessionModalityBinding[]>();
   private readonly abortControllers = new Map<AgentSessionId, AbortController>();
   private readonly store: AgentSessionStore;
   private readonly runtime: AgentRuntime;
@@ -39,30 +41,41 @@ export class AgentSessionManager {
 
   create(input: CreateAgentSessionInput): AgentSession {
     const now = new Date().toISOString();
+    const modalityBindings = input.modalityBindings ?? [];
     const session: AgentSession = {
       id: createId<"AgentSessionId">("sess"),
       goal: input.goal,
       title: input.title,
       state: "idle",
       runtime: input.runtime ?? { provider: "mock", model: "mock-agent-runtime" },
-      modalityIds: input.modalityIds ?? [],
+      modalityBindingIds: modalityBindings.map((binding) => binding.id),
+      modalityBindings,
       createdAt: now,
       updatedAt: now,
       metadata: input.metadata
     };
 
     this.sessions.set(session.id, session);
+    this.bindings.set(session.id, modalityBindings);
     this.emit(session.id, { type: "session.created", goal: session.goal });
-    return session;
+    for (const binding of modalityBindings) {
+      this.emit(session.id, { type: "session.modality_bound", bindingId: binding.id, key: binding.key, modalityId: binding.id });
+    }
+    return this.copySession(session);
   }
 
   get(sessionId: AgentSessionId): AgentSession | undefined {
     const session = this.sessions.get(sessionId);
-    return session ? { ...session, modalityIds: [...session.modalityIds] } : undefined;
+    return session ? this.copySession(session) : undefined;
   }
 
   list(): AgentSession[] {
-    return [...this.sessions.values()].map((session) => ({ ...session, modalityIds: [...session.modalityIds] }));
+    return [...this.sessions.values()].map((session) => this.copySession(session));
+  }
+
+  listBindings(sessionId: AgentSessionId): AgentSessionModalityBinding[] {
+    this.requireSession(sessionId);
+    return this.copyBindings(sessionId);
   }
 
   async start(sessionId: AgentSessionId): Promise<void> {
@@ -77,7 +90,7 @@ export class AgentSessionManager {
 
     try {
       await this.runtime.start({
-        session: this.requireSession(sessionId),
+        session: this.copySession(this.requireSession(sessionId)),
         signal: controller.signal,
         emit: (event) => this.emit(sessionId, event)
       });
@@ -106,18 +119,33 @@ export class AgentSessionManager {
     this.transition(sessionId, "stopped");
   }
 
-  bindModality(sessionId: AgentSessionId, modalityId: AgentSessionModalityId): void {
+  bindModality(sessionId: AgentSessionId, binding: AgentSessionModalityBinding): void {
     const session = this.requireSession(sessionId);
-    if (session.modalityIds.includes(modalityId)) return;
-    this.patch(sessionId, { modalityIds: [...session.modalityIds, modalityId] });
+    const current = this.bindings.get(sessionId) ?? [];
+    if (current.some((candidate) => candidate.id === binding.id)) return;
+    const next = [...current, binding];
+    this.bindings.set(sessionId, next);
+    this.patch(sessionId, {
+      modalityBindingIds: next.map((candidate) => candidate.id),
+      modalityBindings: next
+    });
+    this.emit(sessionId, { type: "session.modality_bound", bindingId: binding.id, key: binding.key, modalityId: binding.id });
   }
 
-  observe(sessionId: AgentSessionId, modalityId: AgentSessionModalityId, observationType: string, value: unknown): AgentSessionEvent {
-    return this.emit(sessionId, { type: "modality.observation", modalityId, observationType, value });
+  observe(
+    sessionId: AgentSessionId,
+    bindingId: AgentSessionModalityId,
+    observationType: string,
+    value: unknown,
+    sourceTimestamp?: string
+  ): AgentSessionEvent {
+    this.requireBinding(sessionId, bindingId);
+    return this.emit(sessionId, { type: "modality.observation", bindingId, modalityId: bindingId, observationType, value, sourceTimestamp });
   }
 
-  act(sessionId: AgentSessionId, modalityId: AgentSessionModalityId, actionType: string, value: unknown): AgentSessionEvent {
-    return this.emit(sessionId, { type: "modality.action", modalityId, actionType, value });
+  act(sessionId: AgentSessionId, bindingId: AgentSessionModalityId, actionType: string, value: unknown): AgentSessionEvent {
+    this.requireBinding(sessionId, bindingId);
+    return this.emit(sessionId, { type: "modality.action", bindingId, modalityId: bindingId, actionType, value });
   }
 
   events(sessionId: AgentSessionId): AgentSessionEvent[] {
@@ -150,10 +178,7 @@ export class AgentSessionManager {
     this.sessions.set(sessionId, { ...session, ...patch, updatedAt: new Date().toISOString() });
   }
 
-  private emit(
-    sessionId: AgentSessionId,
-    event: AgentSessionEventPayload
-  ): AgentSessionEvent {
+  private emit(sessionId: AgentSessionId, event: AgentSessionEventPayload): AgentSessionEvent {
     const sequence = this.store.listEvents(sessionId).length + 1;
     const fullEvent = {
       ...event,
@@ -170,5 +195,27 @@ export class AgentSessionManager {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error(`Unknown agent session: ${sessionId}`);
     return session;
+  }
+
+  private requireBinding(sessionId: AgentSessionId, bindingId: AgentSessionModalityId): AgentSessionModalityBinding {
+    const binding = (this.bindings.get(sessionId) ?? []).find((candidate) => candidate.id === bindingId);
+    if (!binding) throw new Error(`Unknown modality binding for session ${sessionId}: ${bindingId}`);
+    return binding;
+  }
+
+  private copySession(session: AgentSession): AgentSession {
+    const bindings = this.copyBindings(session.id);
+    return {
+      ...session,
+      modalityBindingIds: [...session.modalityBindingIds],
+      modalityBindings: bindings
+    };
+  }
+
+  private copyBindings(sessionId: AgentSessionId): AgentSessionModalityBinding[] {
+    return (this.bindings.get(sessionId) ?? []).map((binding) => ({
+      ...binding,
+      capabilities: [...binding.capabilities]
+    }));
   }
 }

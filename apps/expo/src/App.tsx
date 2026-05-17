@@ -6,7 +6,7 @@ import { AgentSessionManager } from "@exocortex/session";
 export default function App() {
   const registry = useMemo(() => {
     const next = new ModalityRegistry();
-    next.registerDefaults();
+    next.createDefaultHostGraph();
     return next;
   }, []);
   const manager = useMemo(() => new AgentSessionManager(), []);
@@ -14,12 +14,17 @@ export default function App() {
   const [snapshot, setSnapshot] = useState("");
 
   async function startSession() {
-    const session = manager.create({
-      goal,
-      modalityIds: registry.list().map((modality) => modality.id)
-    });
+    const session = manager.create({ goal });
+    for (const modality of registry.listModalityInstances()) {
+      manager.bindModality(session.id, registry.bindToSession({ sessionId: session.id, modalityInstanceId: modality.id }));
+    }
     await manager.start(session.id);
-    setSnapshot(JSON.stringify({ sessions: manager.list(), events: manager.events(session.id), modalities: registry.list() }, null, 2));
+    setSnapshot(JSON.stringify({
+      sessions: manager.list(),
+      events: manager.events(session.id),
+      devices: registry.listDeviceInstances(),
+      modalities: registry.listModalityInstances()
+    }, null, 2));
   }
 
   return (

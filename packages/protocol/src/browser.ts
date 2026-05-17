@@ -1,10 +1,10 @@
-import type { AgentSessionModalityId, BrowserSessionId } from "./id.js";
+import type { BrowserSessionId, ModalityInstanceId } from "./id.js";
 
 export type BrowserSessionState = "created" | "starting" | "running" | "paused" | "stopped" | "error";
 
 export interface BrowserSession {
   id: BrowserSessionId;
-  modalityId: AgentSessionModalityId;
+  modalityInstanceId: ModalityInstanceId;
   state: BrowserSessionState;
   currentUrl?: string;
   title?: string;
@@ -24,7 +24,7 @@ export type BrowserAction =
 
 export interface BrowserProjectionFrame {
   browserSessionId: BrowserSessionId;
-  modalityId: AgentSessionModalityId;
+  modalityInstanceId: ModalityInstanceId;
   width: number;
   height: number;
   mimeType: "image/png" | "image/jpeg";

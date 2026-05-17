@@ -1,4 +1,5 @@
 import type { AgentSessionId, AgentSessionModalityId } from "./id.js";
+import type { AgentSessionModalityBinding } from "./modality.js";
 
 export type AgentSessionState =
   | "idle"
@@ -24,7 +25,8 @@ export interface AgentSession {
   goal: string;
   state: AgentSessionState;
   runtime: AgentRuntimeRef;
-  modalityIds: AgentSessionModalityId[];
+  modalityBindingIds: AgentSessionModalityId[];
+  modalityBindings?: AgentSessionModalityBinding[];
   createdAt: string;
   updatedAt: string;
   startedAt?: string;

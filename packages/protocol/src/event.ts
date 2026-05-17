@@ -21,6 +21,7 @@ export interface EventBase {
 
 export type AgentSessionEvent =
   | (EventBase & { type: "session.created"; goal: string })
+  | (EventBase & { type: "session.modality_bound"; bindingId: AgentSessionModalityId; key: string })
   | (EventBase & { type: "session.state_changed"; previousState: AgentSessionState; nextState: AgentSessionState })
   | (EventBase & { type: "message.delta"; role: "assistant" | "user" | "system"; text: string; source?: string })
   | (EventBase & { type: "message.completed"; role: "assistant" | "user" | "system"; text: string; source?: string })
@@ -29,8 +30,8 @@ export type AgentSessionEvent =
   | (EventBase & { type: "tool_call.completed"; toolCallId: ToolCallId; output: unknown })
   | (EventBase & { type: "tool_call.failed"; toolCallId: ToolCallId; code: string; message: string })
   | (EventBase & { type: "artifact.created"; artifactId: AgentSessionArtifactId; artifact: AgentSessionArtifact })
-  | (EventBase & { type: "modality.observation"; observationType: string; value: unknown })
-  | (EventBase & { type: "modality.action"; actionType: string; value: unknown })
+  | (EventBase & { type: "modality.observation"; bindingId: AgentSessionModalityId; observationType: string; value: unknown; sourceTimestamp?: string })
+  | (EventBase & { type: "modality.action"; bindingId: AgentSessionModalityId; actionType: string; value: unknown })
   | (EventBase & { type: "browser.created"; browserSessionId: BrowserSessionId })
   | (EventBase & { type: "browser.projection_frame"; frame: BrowserProjectionFrame })
   | (EventBase & { type: "browser.action"; browserSessionId: BrowserSessionId; action: BrowserAction })

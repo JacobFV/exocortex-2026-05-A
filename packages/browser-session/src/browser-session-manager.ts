@@ -1,10 +1,10 @@
 import {
   createId,
-  type AgentSessionModalityId,
   type BrowserAction,
   type BrowserProjectionFrame,
   type BrowserSession,
-  type BrowserSessionId
+  type BrowserSessionId,
+  type ModalityInstanceId
 } from "@exocortex/protocol";
 
 export interface BrowserController {
@@ -31,11 +31,11 @@ export class BrowserSessionManager {
 
   constructor(private readonly controller: BrowserController = new MemoryBrowserController()) {}
 
-  async create(modalityId: AgentSessionModalityId, metadata?: Record<string, unknown>): Promise<BrowserSession> {
+  async create(modalityInstanceId: ModalityInstanceId, metadata?: Record<string, unknown>): Promise<BrowserSession> {
     const now = new Date().toISOString();
     const session: BrowserSession = {
       id: createId<"BrowserSessionId">("browser"),
-      modalityId,
+      modalityInstanceId,
       state: "created",
       createdAt: now,
       updatedAt: now,

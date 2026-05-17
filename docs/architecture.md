@@ -41,6 +41,31 @@ The event log is append-only. It includes:
 
 Artifacts are durable products of a session: files, images, audio clips, transcripts, logs, screenshots, browser recordings, calibration data, and structured JSON.
 
+### Devices, Modalities, Bindings
+
+Command AGI has a strong `PeripheralType` / `PeripheralInstance` split. Exocortex keeps that split but makes the semantic channel more explicit because a head-mounted wearable will have too many sensors and actuators for "peripheral" to be precise enough.
+
+The hierarchy is:
+
+```txt
+DeviceType
+  -> DeviceInstance
+      -> ModalityType
+          -> ModalityInstance
+              -> AgentSessionModalityBinding
+```
+
+Examples:
+
+- `host_unix_device` -> `host` -> `app_input_text`
+- `host_unix_device` -> `host` -> `device_mic_stt_input_text`
+- `serial_microcontroller` -> `head_serial_bridge` -> `ext_mic_1_stt_input_text`
+- `serial_microcontroller` -> `head_serial_bridge` -> `ext_mic_2_stt_input_text`
+- `browser_session` -> `browser_...` -> `browser_projected_screen`
+- `browser_session` -> `browser_...` -> `browser_control_input`
+
+The binding is what an agent session actually receives or controls. It captures policy and provenance for that session: observe, control, observe-and-control, or disabled.
+
 ### `agent_session_modalities`
 
 The preferred name is `modalities`, not `peripherals`.
@@ -52,13 +77,15 @@ Reasoning:
 - The same hardware can expose several modalities. A microphone can expose raw audio, VAD, diarization, and STT text.
 - The agent needs provenance at the semantic channel level, not just at the device level.
 
-Each modality has a direction:
+Each modality type and instance has a direction:
 
 - `input` - produces observations.
 - `output` - receives actions.
 - `duplex` - both.
 
-Each modality also has a kind: text, audio, video, image, sensor, actuator, browser, computer, haptic, lighting, ultrasound, eeg, serial, system, or custom.
+Each modality also has a kind: text, audio, video, image, sensor, actuator, browser, computer, haptic, lighting, laser, ultrasound, eeg, serial, system, or custom.
+
+This lets the app preserve source separation even when values have the same semantic shape. `app_input_text`, `device_mic_stt_input_text`, `ext_mic_1_stt_input_text`, and `ext_mic_2_stt_input_text` can all deliver text observations, but they are different modality instances and session bindings. The event log records the binding on every observation.
 
 ## Browser and Computer Sessions
 
@@ -70,3 +97,23 @@ Agents should be able to manage browser sessions now, with future support for ot
 - Emit events back into the agent session with the browser session id and modality id.
 
 This leaves room for future local desktop, remote VM, containerized browser, AR display, or embedded Linux computer sessions without changing the agent event model.
+
+## Current Package Mapping
+
+- `packages/protocol` defines the durable protocol: devices, modality types/instances/bindings, sessions, events, artifacts, browser sessions, and IDs.
+- `packages/peripherals` is currently the modality/device registry and bridge layer. The package name may later become `packages/modalities` or `packages/hardware`, but the code now models modalities as the first-class primitive.
+- `packages/session` owns concurrent agent sessions, lifecycle transitions, modality binding, observation/action event emission, and the runtime callback interface.
+- `packages/browser-session` owns projected controllable browser/computer-session abstractions.
+- `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
+
+## Reference Learnings From `refs/command-agi-gamma`
+
+The reference checkout is intentionally ignored by Git at `refs/command-agi-gamma`. The most important patterns adopted here are:
+
+- Static type definitions and runtime instances should be separate.
+- A session manager should support multiple simultaneous sessions instead of assuming one active agent.
+- Tool execution and device/environment control should be routed through explicit runtime objects.
+- Browser control should be modeled as a projected controllable session, not as phone control.
+- Content/events should preserve multimodal provenance and artifacts.
+
+The main intentional divergence is that Exocortex promotes modalities above tools. In command-agi-gamma, most capability structure is represented through peripherals and tool schemas. For Exocortex, a capability may still become a tool, but the raw sensory/actuator channel itself is a durable session object.

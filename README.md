@@ -17,8 +17,8 @@ Every observation and action keeps its source modality explicit so the agent can
 - `apps/electron` - desktop/Unix host shell
 - `apps/expo` - wearable/mobile host shell
 - `packages/protocol` - shared event, artifact, command, modality, and session types
-- `packages/session` - concurrent agent session manager and in-memory event/artifact store
-- `packages/peripherals` - modality registry and hardware/host bridge abstractions
+- `packages/session` - concurrent agent session manager, modality binding, and in-memory event/artifact store
+- `packages/peripherals` - device/modality registry and hardware/host bridge abstractions
 - `packages/browser-session` - browser/computer-session control abstractions
 - `docs/architecture.md` - architecture articulation and naming rationale
 
@@ -30,3 +30,5 @@ npm run validate
 npm run dev:electron
 npm run dev:expo
 ```
+
+The reference repository is expected to live at `refs/command-agi-gamma`. It is ignored by Git and should not be committed.

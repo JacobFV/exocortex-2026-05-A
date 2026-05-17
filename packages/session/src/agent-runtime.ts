@@ -15,12 +15,12 @@ export class MockAgentRuntime implements AgentRuntime {
     context.emit({
       type: "message.delta",
       role: "assistant",
-      text: "Session online. Modalities bound: "
+      text: "Session online. Modality bindings active: "
     });
     context.emit({
       type: "message.delta",
       role: "assistant",
-      text: context.session.modalityIds.length.toString()
+      text: context.session.modalityBindingIds.length.toString()
     });
     context.emit({
       type: "message.completed",

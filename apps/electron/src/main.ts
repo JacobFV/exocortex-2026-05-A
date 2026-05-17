@@ -4,16 +4,21 @@ import { ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
 import { AgentSessionManager } from "@exocortex/session";
 
 const modalityRegistry = new ModalityRegistry();
-const defaultModalities = modalityRegistry.registerDefaults();
+const hostModalities = modalityRegistry.createDefaultHostGraph();
 const sessionManager = new AgentSessionManager();
 const browserSessionManager = new BrowserSessionManager();
 
-const appTextModality = modalityRegistry.getByKey("app_input_text") ?? defaultModalities[0];
+const appTextModality = modalityRegistry.getModalityByKey("app_input_text") ?? hostModalities[0];
 const appTextBridge = new ManualInputBridge(appTextModality);
 
 appTextBridge.subscribe((observation) => {
   for (const session of sessionManager.list().filter((candidate) => candidate.state === "running")) {
-    sessionManager.observe(session.id, observation.modalityId, observation.observationType, observation.value);
+    const binding = sessionManager
+      .listBindings(session.id)
+      .find((candidate) => candidate.modalityInstanceId === observation.modalityInstanceId);
+    if (binding) {
+      sessionManager.observe(session.id, binding.id, observation.observationType, observation.value, observation.observedAt);
+    }
   }
 });
 
@@ -33,35 +38,53 @@ async function createMainWindow(): Promise<void> {
 }
 
 ipcMain.handle("exocortex:create-session", async (_event, goal: string) => {
-  const session = sessionManager.create({
-    goal,
-    modalityIds: modalityRegistry.list().map((modality) => modality.id)
-  });
+  const session = sessionManager.create({ goal });
+  for (const modality of modalityRegistry.listModalityInstances()) {
+    sessionManager.bindModality(session.id, registryBinding(session.id, modality.id));
+  }
   void sessionManager.start(session.id);
-  return session;
+  return sessionManager.get(session.id);
 });
 
 ipcMain.handle("exocortex:list-sessions", () => sessionManager.list());
 ipcMain.handle("exocortex:list-events", (_event, sessionId: string) => sessionManager.events(sessionId as never));
-ipcMain.handle("exocortex:list-modalities", () => modalityRegistry.list());
+ipcMain.handle("exocortex:list-modalities", () => ({
+  deviceTypes: modalityRegistry.listDeviceTypes(),
+  modalityTypes: modalityRegistry.listModalityTypes(),
+  devices: modalityRegistry.listDeviceInstances(),
+  modalities: modalityRegistry.listModalityInstances()
+}));
 ipcMain.handle("exocortex:inject-app-text", (_event, text: string) => appTextBridge.injectText(text));
 ipcMain.handle("exocortex:create-browser-session", async () => {
-  const browserModality = modalityRegistry.register({
-    key: `browser_session_${Date.now()}`,
+  const device = modalityRegistry.createDeviceInstance({
+    typeKey: "browser_session",
+    key: `browser_${Date.now()}`,
     label: "Browser session",
-    direction: "duplex",
-    kind: "browser",
-    source: "browser_session",
-    transport: "ipc",
-    capabilities: ["browser.project_screen", "browser.input.pointer", "browser.input.keyboard", "browser.navigate"]
+    transport: "ipc"
   });
-  return browserSessionManager.create(browserModality.id);
+  const projectedScreen = modalityRegistry.createModalityInstance({
+    typeKey: "browser_projected_screen",
+    deviceId: device.id,
+    source: "browser_session",
+    transport: "ipc"
+  });
+  modalityRegistry.createModalityInstance({
+    typeKey: "browser_control_input",
+    deviceId: device.id,
+    source: "browser_session",
+    transport: "ipc"
+  });
+  return browserSessionManager.create(projectedScreen.id);
 });
 
 app.whenReady().then(createMainWindow);
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
+
+function registryBinding(sessionId: Parameters<AgentSessionManager["listBindings"]>[0], modalityInstanceId: Parameters<ModalityRegistry["bindToSession"]>[0]["modalityInstanceId"]) {
+  return modalityRegistry.bindToSession({ sessionId, modalityInstanceId });
+}
 
 function renderHtml(): string {
   return `<!doctype html>
@@ -78,7 +101,6 @@ function renderHtml(): string {
       textarea { width: 100%; min-height: 96px; box-sizing: border-box; }
       button { margin-top: 8px; padding: 8px 10px; }
       pre { white-space: pre-wrap; background: #171d22; padding: 12px; border: 1px solid #2b333a; }
-      .row { display: flex; gap: 8px; }
     </style>
   </head>
   <body>
@@ -96,7 +118,7 @@ function renderHtml(): string {
       <section>
         <h2>Events</h2>
         <pre id="events"></pre>
-        <h2>Modalities</h2>
+        <h2>Device and Modality Graph</h2>
         <pre id="modalities"></pre>
       </section>
     </main>

@@ -1,14 +1,15 @@
-import type { AgentSessionModality, AgentSessionModalityId } from "@exocortex/protocol";
+import type { AgentSessionModalityId, ModalityInstance } from "@exocortex/protocol";
 
 export interface ModalityObservation {
-  modalityId: AgentSessionModalityId;
+  bindingId?: AgentSessionModalityId;
+  modalityInstanceId: ModalityInstance["id"];
   observationType: string;
   value: unknown;
   observedAt: string;
 }
 
 export interface ModalityBridge {
-  readonly modality: AgentSessionModality;
+  readonly modality: ModalityInstance;
   start(): Promise<void>;
   stop(): Promise<void>;
   send?(actionType: string, value: unknown): Promise<void>;
@@ -18,7 +19,7 @@ export interface ModalityBridge {
 export class ManualInputBridge implements ModalityBridge {
   private readonly listeners = new Set<(observation: ModalityObservation) => void>();
 
-  constructor(readonly modality: AgentSessionModality) {}
+  constructor(readonly modality: ModalityInstance) {}
 
   async start(): Promise<void> {}
 
@@ -34,7 +35,7 @@ export class ManualInputBridge implements ModalityBridge {
   injectText(text: string, partial = false): void {
     for (const listener of this.listeners) {
       listener({
-        modalityId: this.modality.id,
+        modalityInstanceId: this.modality.id,
         observationType: partial ? "text.partial" : "text.final",
         value: { text },
         observedAt: new Date().toISOString()
