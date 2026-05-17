@@ -27,7 +27,7 @@ export interface BrowserProjectionFrame {
   modalityInstanceId: ModalityInstanceId;
   width: number;
   height: number;
-  mimeType: "image/png" | "image/jpeg";
+  mimeType: "image/png" | "image/jpeg" | "image/svg+xml";
   data: string;
   capturedAt: string;
 }

@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { BrowserSessionManager } from "@exocortex/browser-session";
+import type { AgentSessionId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
 import { AgentSessionManager } from "@exocortex/session";
 
@@ -47,7 +48,9 @@ ipcMain.handle("exocortex:create-session", async (_event, goal: string) => {
 });
 
 ipcMain.handle("exocortex:list-sessions", () => sessionManager.list());
-ipcMain.handle("exocortex:list-events", (_event, sessionId: string) => sessionManager.events(sessionId as never));
+ipcMain.handle("exocortex:list-events", (_event, sessionId: AgentSessionId) => sessionManager.events(sessionId));
+ipcMain.handle("exocortex:list-bindings", (_event, sessionId: AgentSessionId) => sessionManager.listBindings(sessionId));
+ipcMain.handle("exocortex:list-artifacts", (_event, sessionId: AgentSessionId) => sessionManager.artifacts(sessionId));
 ipcMain.handle("exocortex:list-modalities", () => ({
   deviceTypes: modalityRegistry.listDeviceTypes(),
   modalityTypes: modalityRegistry.listModalityTypes(),
@@ -74,8 +77,17 @@ ipcMain.handle("exocortex:create-browser-session", async () => {
     source: "browser_session",
     transport: "ipc"
   });
-  return browserSessionManager.create(projectedScreen.id);
+  const browser = await browserSessionManager.create(projectedScreen.id);
+  await browserSessionManager.start(browser.id);
+  return browserSessionManager.captureFrame(browser.id);
 });
+ipcMain.handle("exocortex:list-browser-sessions", () => browserSessionManager.list());
+ipcMain.handle("exocortex:browser-dispatch", (_event, browserSessionId: BrowserSessionId, action: BrowserAction) =>
+  browserSessionManager.dispatch(browserSessionId, action)
+);
+ipcMain.handle("exocortex:browser-capture", (_event, browserSessionId: BrowserSessionId) =>
+  browserSessionManager.captureFrame(browserSessionId)
+);
 
 app.whenReady().then(createMainWindow);
 app.on("window-all-closed", () => {

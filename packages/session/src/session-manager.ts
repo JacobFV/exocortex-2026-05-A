@@ -2,6 +2,7 @@ import {
   createId,
   type AgentRuntimeRef,
   type AgentSession,
+  type AgentSessionArtifact,
   type AgentSessionEvent,
   type AgentSessionEventPayload,
   type AgentSessionId,
@@ -10,9 +11,9 @@ import {
   type AgentSessionState
 } from "@exocortex/protocol";
 import type { AgentRuntime } from "./agent-runtime.js";
-import { MockAgentRuntime } from "./agent-runtime.js";
-import type { AgentSessionStore } from "./event-store.js";
-import { InMemoryAgentSessionStore } from "./event-store.js";
+import { ContinuousAgentRuntime } from "./agent-runtime.js";
+import type { AgentSessionEventListener, AgentSessionStore } from "./event-store.js";
+import { AgentSessionEventBus, InMemoryAgentSessionStore } from "./event-store.js";
 
 export interface CreateAgentSessionInput {
   goal: string;
@@ -31,12 +32,14 @@ export class AgentSessionManager {
   private readonly sessions = new Map<AgentSessionId, AgentSession>();
   private readonly bindings = new Map<AgentSessionId, AgentSessionModalityBinding[]>();
   private readonly abortControllers = new Map<AgentSessionId, AbortController>();
+  private readonly runtimeTasks = new Map<AgentSessionId, Promise<void>>();
   private readonly store: AgentSessionStore;
+  private readonly bus = new AgentSessionEventBus();
   private readonly runtime: AgentRuntime;
 
   constructor(options: AgentSessionManagerOptions = {}) {
     this.store = options.store ?? new InMemoryAgentSessionStore();
-    this.runtime = options.runtime ?? new MockAgentRuntime();
+    this.runtime = options.runtime ?? new ContinuousAgentRuntime();
   }
 
   create(input: CreateAgentSessionInput): AgentSession {
@@ -47,7 +50,7 @@ export class AgentSessionManager {
       goal: input.goal,
       title: input.title,
       state: "idle",
-      runtime: input.runtime ?? { provider: "mock", model: "mock-agent-runtime" },
+      runtime: input.runtime ?? { provider: "local", model: this.runtime.runtimeId },
       modalityBindingIds: modalityBindings.map((binding) => binding.id),
       modalityBindings,
       createdAt: now,
@@ -80,7 +83,7 @@ export class AgentSessionManager {
 
   async start(sessionId: AgentSessionId): Promise<void> {
     const session = this.requireSession(sessionId);
-    if (session.state === "running") return;
+    if (session.state === "running" || session.state === "starting") return;
 
     const controller = new AbortController();
     this.abortControllers.set(sessionId, controller);
@@ -88,22 +91,23 @@ export class AgentSessionManager {
     this.patch(sessionId, { startedAt: new Date().toISOString() });
     this.transition(sessionId, "running");
 
-    try {
-      await this.runtime.start({
-        session: this.copySession(this.requireSession(sessionId)),
-        signal: controller.signal,
-        emit: (event) => this.emit(sessionId, event)
+    const task = this.runtime
+      .start(this.runtimeContext(sessionId, controller))
+      .then(() => {
+        this.abortControllers.delete(sessionId);
+        this.runtimeTasks.delete(sessionId);
+        const current = this.sessions.get(sessionId);
+        if (current && current.state !== "stopped" && current.state !== "finished" && current.state !== "error") {
+          this.finish(sessionId, true, "Agent runtime completed.");
+        }
+      })
+      .catch((error) => {
+        this.abortControllers.delete(sessionId);
+        this.runtimeTasks.delete(sessionId);
+        const message = error instanceof Error ? error.message : "Unknown agent runtime error";
+        this.fail(sessionId, "agent_runtime_error", message, true);
       });
-
-      if (!controller.signal.aborted) {
-        this.finish(sessionId, true, "Agent runtime completed.");
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown agent runtime error";
-      this.fail(sessionId, "agent_runtime_error", message, true);
-    } finally {
-      this.abortControllers.delete(sessionId);
-    }
+    this.runtimeTasks.set(sessionId, task);
   }
 
   pause(sessionId: AgentSessionId): void {
@@ -140,7 +144,9 @@ export class AgentSessionManager {
     sourceTimestamp?: string
   ): AgentSessionEvent {
     this.requireBinding(sessionId, bindingId);
-    return this.emit(sessionId, { type: "modality.observation", bindingId, modalityId: bindingId, observationType, value, sourceTimestamp });
+    const event = this.emit(sessionId, { type: "modality.observation", bindingId, modalityId: bindingId, observationType, value, sourceTimestamp });
+    this.deliverObservation(sessionId, event);
+    return event;
   }
 
   act(sessionId: AgentSessionId, bindingId: AgentSessionModalityId, actionType: string, value: unknown): AgentSessionEvent {
@@ -151,6 +157,27 @@ export class AgentSessionManager {
   events(sessionId: AgentSessionId): AgentSessionEvent[] {
     this.requireSession(sessionId);
     return this.store.listEvents(sessionId);
+  }
+
+  createArtifact(input: Omit<AgentSessionArtifact, "id" | "createdAt"> & { id?: AgentSessionArtifact["id"]; createdAt?: string }): AgentSessionArtifact {
+    this.requireSession(input.sessionId);
+    const artifact: AgentSessionArtifact = {
+      ...input,
+      id: input.id ?? createId<"AgentSessionArtifactId">("art"),
+      createdAt: input.createdAt ?? new Date().toISOString()
+    };
+    this.store.putArtifact(artifact);
+    this.emit(input.sessionId, { type: "artifact.created", artifactId: artifact.id, artifact });
+    return artifact;
+  }
+
+  artifacts(sessionId: AgentSessionId): AgentSessionArtifact[] {
+    this.requireSession(sessionId);
+    return this.store.listArtifacts(sessionId);
+  }
+
+  subscribe(sessionId: AgentSessionId | "*", listener: AgentSessionEventListener): () => void {
+    return this.bus.subscribe(sessionId, listener);
   }
 
   private finish(sessionId: AgentSessionId, success: boolean, summary?: string): void {
@@ -188,7 +215,27 @@ export class AgentSessionManager {
       createdAt: new Date().toISOString()
     } as AgentSessionEvent;
     this.store.appendEvent(fullEvent);
+    this.bus.publish(fullEvent);
     return fullEvent;
+  }
+
+  private runtimeContext(sessionId: AgentSessionId, controller?: AbortController) {
+    const signal = controller?.signal ?? this.abortControllers.get(sessionId)?.signal;
+    if (!signal) throw new Error(`Agent session is not running: ${sessionId}`);
+    return {
+      session: this.copySession(this.requireSession(sessionId)),
+      signal,
+      emit: (event: AgentSessionEventPayload) => this.emit(sessionId, event)
+    };
+  }
+
+  private deliverObservation(sessionId: AgentSessionId, event: AgentSessionEvent): void {
+    const controller = this.abortControllers.get(sessionId);
+    if (!controller || !this.runtime.handleObservation) return;
+    void this.runtime.handleObservation(this.runtimeContext(sessionId, controller), event).catch((error) => {
+      const message = error instanceof Error ? error.message : "Unknown observation handling error";
+      this.emit(sessionId, { type: "session.error", code: "observation_handler_error", message, recoverable: true });
+    });
   }
 
   private requireSession(sessionId: AgentSessionId): AgentSession {

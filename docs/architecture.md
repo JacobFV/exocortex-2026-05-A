@@ -102,9 +102,19 @@ This leaves room for future local desktop, remote VM, containerized browser, AR 
 
 - `packages/protocol` defines the durable protocol: devices, modality types/instances/bindings, sessions, events, artifacts, browser sessions, and IDs.
 - `packages/peripherals` is currently the modality/device registry and bridge layer. The package name may later become `packages/modalities` or `packages/hardware`, but the code now models modalities as the first-class primitive.
-- `packages/session` owns concurrent agent sessions, lifecycle transitions, modality binding, observation/action event emission, and the runtime callback interface.
-- `packages/browser-session` owns projected controllable browser/computer-session abstractions.
+- `packages/session` owns concurrent long-running agent sessions, lifecycle transitions, modality binding, observation/action event emission, artifact recording, event subscriptions, bridge routing, and the runtime callback interface.
+- `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
 - `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
+
+## Implemented Runtime Contract
+
+The default runtime is a continuous local runtime. A started session stays running until stopped, and observations delivered through a bound modality are appended to the session event stream and delivered to the runtime. The runtime contract is intentionally host-agnostic:
+
+- `start(context)` owns lifecycle and can block until the abort signal fires.
+- `handleObservation(context, event)` receives modality observations.
+- `handleActionResult(context, event)` is reserved for actuator/tool result delivery.
+
+Production LLM runtimes plug into that contract without changing the session/event/modality model.
 
 ## Reference Learnings From `refs/command-agi-gamma`
 

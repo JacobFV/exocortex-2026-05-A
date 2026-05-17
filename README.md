@@ -32,3 +32,5 @@ npm run dev:expo
 ```
 
 The reference repository is expected to live at `refs/command-agi-gamma`. It is ignored by Git and should not be committed.
+
+The session package also includes a JSONL file-backed store for local durable event/artifact logs and an event bus for host subscriptions.
