@@ -1,0 +1,22 @@
+{
+  "name": "@exocortex/electron",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "npm run build && electron dist/main.js"
+  },
+  "dependencies": {
+    "@exocortex/browser-session": "0.0.0",
+    "@exocortex/peripherals": "0.0.0",
+    "@exocortex/protocol": "0.0.0",
+    "@exocortex/session": "0.0.0",
+    "electron": "^31.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12"
+  }
+}

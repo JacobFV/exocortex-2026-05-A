@@ -1,0 +1,24 @@
+{
+  "name": "exocortex",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Wearable exocortex agent runtime with first-class modalities, Expo and Electron hosts.",
+  "type": "module",
+  "packageManager": "npm@10.0.0",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @exocortex/protocol && npm run build -w @exocortex/peripherals && npm run build -w @exocortex/browser-session && npm run build -w @exocortex/session && npm run build -w @exocortex/electron && npm run build -w @exocortex/expo",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "validate": "npm run build && npm run test",
+    "dev:electron": "npm --workspace @exocortex/electron run dev",
+    "dev:expo": "npm --workspace @exocortex/expo run dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "tsx": "^4.19.2"
+  }
+}

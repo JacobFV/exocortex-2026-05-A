@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "composite": true,
+    "types": ["node"]
+  },
+  "references": [
+    { "path": "../../packages/protocol" },
+    { "path": "../../packages/peripherals" },
+    { "path": "../../packages/browser-session" },
+    { "path": "../../packages/session" }
+  ],
+  "include": ["src/**/*.ts"]
+}

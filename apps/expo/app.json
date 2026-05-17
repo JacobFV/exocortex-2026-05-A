@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Exocortex",
+    "slug": "exocortex",
+    "scheme": "exocortex",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"],
+    "jsEngine": "hermes",
+    "newArchEnabled": true
+  }
+}

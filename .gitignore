@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.expo/
+.turbo/
+*.tsbuildinfo
+.DS_Store
+coverage/
+*.log
+refs/command-agi-gamma/
