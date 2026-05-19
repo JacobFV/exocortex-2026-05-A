@@ -155,6 +155,16 @@ The system must store calibration artifacts for:
 
 Laser, headlamp, ultrasound, and other actuator outputs must be command-gated through explicit modality actions and must be represented in the event log.
 
+The calibration runtime must provide:
+
+- versioned calibration profiles per physical device.
+- linear analog transforms with clamping.
+- ADC reference conversion.
+- EEG baseline and gain conversion.
+- actuator safety overlays that can only reduce configured output power.
+- projection and pointer coordinate calibration.
+- session artifacts that persist the calibration profile used by an agent run.
+
 ## Reference Architecture
 
 `refs/command-agi-gamma` is the local reference checkout. It is not committed into this repository.

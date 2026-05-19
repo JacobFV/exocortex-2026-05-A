@@ -105,6 +105,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `packages/media` owns STT and TTS providers.
 - `packages/transports` owns serial framing and Unix serial device transport.
 - `packages/hardware` owns typed head bridge configuration for ESPs, ADC channels, analog muxes, and actuator outputs.
+- `packages/calibration` owns calibration profiles, raw-to-calibrated sample conversion, actuator safety overlays, projection/pointer calibration types, and calibration artifacts.
 - `packages/peripherals` is currently the modality/device registry and bridge layer. The package name may later become `packages/modalities` or `packages/hardware`, but the code now models modalities as the first-class primitive.
 - `packages/session` owns concurrent long-running agent sessions, lifecycle transitions, modality binding, observation/action event emission, artifact recording, event subscriptions, bridge routing, and the runtime callback interface.
 - `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
@@ -124,6 +125,8 @@ ESP-class bridges use newline-delimited JSON frames over serial. Sensor frames a
 ```
 
 The host routes inbound frames by `channel` into matching modality instances. Outbound `modality.action` events are routed through registered action sinks and written back to the bridge.
+
+Calibration is applied outside the serial envelope. The bridge remains a raw hardware transport, while `packages/calibration` records the profile used to convert raw ADC/mux/EEG samples into agent-visible values and to tighten actuator limits before commands reach the serial writer.
 
 ## Implemented Runtime Contract
 
