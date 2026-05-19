@@ -11,7 +11,7 @@ import {
   type AgentSessionState
 } from "@exocortex/protocol";
 import type { AgentRuntime } from "./agent-runtime.js";
-import { ContinuousAgentRuntime } from "./agent-runtime.js";
+import { ModelDrivenAgentRuntime } from "./agent-runtime.js";
 import type { AgentSessionEventListener, AgentSessionStore } from "./event-store.js";
 import { AgentSessionEventBus, InMemoryAgentSessionStore } from "./event-store.js";
 
@@ -39,7 +39,7 @@ export class AgentSessionManager {
 
   constructor(options: AgentSessionManagerOptions = {}) {
     this.store = options.store ?? new InMemoryAgentSessionStore();
-    this.runtime = options.runtime ?? new ContinuousAgentRuntime();
+    this.runtime = options.runtime ?? new ModelDrivenAgentRuntime();
   }
 
   create(input: CreateAgentSessionInput): AgentSession {
