@@ -89,14 +89,14 @@ This lets the app preserve source separation even when values have the same sema
 
 ## Browser and Computer Sessions
 
-Agents should be able to manage browser sessions now, with future support for other computer session types. The abstraction is not "phone control"; it is a projected controllable session:
+Agents manage browser and computer sessions as projected controllable environments. The abstraction is not "phone control"; it is a session surface:
 
 - Capture/project screen frames.
 - Receive pointer, touch, keyboard, and text input events from a host device.
 - Execute browser actions such as navigation, click, type, key, scroll, and evaluate.
 - Emit events back into the agent session with the browser session id and modality id.
 
-This leaves room for future local desktop, remote VM, containerized browser, AR display, or embedded Linux computer sessions without changing the agent event model.
+The same event model covers local desktop, remote VM, containerized browser, AR display, and embedded Linux computer sessions.
 
 ## Current Package Mapping
 

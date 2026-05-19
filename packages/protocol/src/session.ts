@@ -13,7 +13,7 @@ export type AgentSessionState =
   | "error";
 
 export interface AgentRuntimeRef {
-  provider: "openai" | "anthropic" | "local" | "mock" | "custom";
+  provider: "openai" | "anthropic" | "local" | "openai_compatible" | "ollama" | "llama_cpp_cli" | "custom";
   model?: string;
   driver?: string;
   metadata?: Record<string, unknown>;
