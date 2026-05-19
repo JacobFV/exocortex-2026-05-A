@@ -1,6 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { AgentSessionArtifact, AgentSessionArtifactId, AgentSessionEvent, AgentSessionId } from "@exocortex/protocol";
+import type { AgentSessionArtifact, AgentSessionEvent, AgentSessionId } from "@exocortex/protocol";
+import Database from "better-sqlite3";
+import type { Database as SqliteDatabase, Statement } from "better-sqlite3";
 
 export interface AgentSessionStore {
   appendEvent(event: AgentSessionEvent): void;
@@ -82,6 +84,139 @@ export class JsonFileAgentSessionStore implements AgentSessionStore {
     } catch {
       return "";
     }
+  }
+}
+
+export interface SQLiteAgentSessionStoreOptions {
+  readonly wal?: boolean;
+}
+
+interface SerializedAgentSessionEventRow {
+  readonly payload_json: string;
+}
+
+interface SerializedAgentSessionArtifactRow {
+  readonly payload_json: string;
+}
+
+export class SQLiteAgentSessionStore implements AgentSessionStore {
+  private readonly db: SqliteDatabase;
+  private readonly appendEventStatement: Statement;
+  private readonly listEventsStatement: Statement;
+  private readonly putArtifactStatement: Statement;
+  private readonly listArtifactsStatement: Statement;
+
+  constructor(dbPath: string, options: SQLiteAgentSessionStoreOptions = {}) {
+    if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true });
+
+    this.db = new Database(dbPath);
+    this.db.pragma("foreign_keys = ON");
+    this.db.pragma("busy_timeout = 5000");
+    this.db.pragma("synchronous = NORMAL");
+    if (options.wal ?? dbPath !== ":memory:") this.db.pragma("journal_mode = WAL");
+
+    this.initializeSchema();
+    this.appendEventStatement = this.db.prepare(`
+      INSERT INTO agent_session_events (id, session_id, sequence, type, created_at, payload_json)
+      VALUES (@id, @sessionId, @sequence, @type, @createdAt, @payloadJson)
+    `);
+    this.listEventsStatement = this.db.prepare(`
+      SELECT payload_json
+      FROM agent_session_events
+      WHERE session_id = ?
+      ORDER BY sequence ASC, row_id ASC
+    `);
+    this.putArtifactStatement = this.db.prepare(`
+      INSERT INTO agent_session_artifacts (id, session_id, kind, title, created_at, payload_json)
+      VALUES (@id, @sessionId, @kind, @title, @createdAt, @payloadJson)
+    `);
+    this.listArtifactsStatement = this.db.prepare(`
+      SELECT payload_json
+      FROM agent_session_artifacts
+      WHERE session_id = ?
+      ORDER BY row_id ASC
+    `);
+  }
+
+  appendEvent(event: AgentSessionEvent): void {
+    this.appendEventStatement.run({
+      id: event.id,
+      sessionId: event.sessionId,
+      sequence: event.sequence,
+      type: event.type,
+      createdAt: event.createdAt,
+      payloadJson: JSON.stringify(event)
+    });
+  }
+
+  listEvents(sessionId: AgentSessionId): AgentSessionEvent[] {
+    return this.listRows<AgentSessionEvent>(this.listEventsStatement.all(sessionId) as SerializedAgentSessionEventRow[], "event");
+  }
+
+  putArtifact(artifact: AgentSessionArtifact): void {
+    this.putArtifactStatement.run({
+      id: artifact.id,
+      sessionId: artifact.sessionId,
+      kind: artifact.kind,
+      title: artifact.title,
+      createdAt: artifact.createdAt,
+      payloadJson: JSON.stringify(artifact)
+    });
+  }
+
+  listArtifacts(sessionId: AgentSessionId): AgentSessionArtifact[] {
+    return this.listRows<AgentSessionArtifact>(this.listArtifactsStatement.all(sessionId) as SerializedAgentSessionArtifactRow[], "artifact");
+  }
+
+  close(): void {
+    this.db.close();
+  }
+
+  private initializeSchema(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS agent_session_events (
+        row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT NOT NULL UNIQUE,
+        session_id TEXT NOT NULL,
+        sequence INTEGER NOT NULL CHECK (sequence > 0),
+        type TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        inserted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        UNIQUE (session_id, sequence)
+      );
+
+      CREATE INDEX IF NOT EXISTS agent_session_events_session_sequence_idx
+        ON agent_session_events (session_id, sequence);
+
+      CREATE TABLE IF NOT EXISTS agent_session_artifacts (
+        row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        inserted_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+
+      CREATE INDEX IF NOT EXISTS agent_session_artifacts_session_row_idx
+        ON agent_session_artifacts (session_id, row_id);
+
+      CREATE INDEX IF NOT EXISTS agent_session_artifacts_id_idx
+        ON agent_session_artifacts (id);
+    `);
+  }
+
+  private listRows<T>(rows: Array<{ payload_json: string }>, rowType: string): T[] {
+    return rows.map((row) => {
+      try {
+        return JSON.parse(row.payload_json) as T;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to parse persisted agent session ${rowType}: ${message}`);
+      }
+    });
   }
 }
 

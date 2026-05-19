@@ -18,7 +18,7 @@ Every observation and action keeps its source modality explicit so the agent can
 - `apps/expo` - wearable/mobile host shell
 - `packages/protocol` - shared event, artifact, command, modality, and session types
 - `packages/models` - interchangeable model providers for local rules, Ollama, llama.cpp CLI, and OpenAI-compatible APIs
-- `packages/media` - STT/TTS providers for OpenAI-compatible audio, local command STT, and macOS speech output
+- `packages/media` - STT/TTS providers plus command-backed local image, audio, and video capture providers
 - `packages/transports` - serial framing and Unix serial transport
 - `packages/hardware` - head bridge ADC, analog mux, and actuator configuration models
 - `packages/calibration` - calibration profiles, sample conversion, and calibration artifacts
@@ -43,4 +43,8 @@ npm run dev:expo
 
 The reference repository is expected to live at `refs/command-agi-gamma`. It is ignored by Git and should not be committed.
 
-The session package also includes a JSONL file-backed store for local durable event/artifact logs and an event bus for host subscriptions.
+The session package includes in-memory, JSONL file-backed, and SQLite-backed stores for durable event/artifact logs plus an event bus for host subscriptions.
+
+`@exocortex/media` can register local capture providers from host commands via `EXOCORTEX_IMAGE_CAPTURE_COMMAND`, `EXOCORTEX_AUDIO_CAPTURE_COMMAND`, and `EXOCORTEX_VIDEO_CAPTURE_COMMAND`. Pass JSON argument arrays in the matching `_ARGS` variables and use `{output}`, `{durationMs}`, `{durationSeconds}`, or `{deviceId}` placeholders for command templates.
+
+`exocortex-hardware` also owns operator calibration commands: generate a profile template, validate a profile against the head bridge config, derive linear transforms from measured point pairs, and apply profiles to raw samples.

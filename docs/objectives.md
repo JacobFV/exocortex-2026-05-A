@@ -86,12 +86,14 @@ Every observation and action must preserve:
 The hardware stack includes:
 
 - Unix-like host device.
+- Expo native host device.
 - ESP-class microcontrollers.
 - ADCs.
 - analog multiplexers.
 - integrated host cameras, microphones, and speakers.
 - external cameras.
 - external microphones and speakers.
+- native host microphones, cameras, and speakers exposed through modality bridges.
 - EEG front ends.
 - ultrasound transducers.
 - headlamps and lasers.
@@ -147,6 +149,7 @@ The system must support:
 - in-memory stores for tests.
 - JSONL file-backed event and artifact stores for local durable operation.
 - session artifacts for text, JSON, images, audio, video, screenshots, browser recordings, sensor logs, and calibration data.
+- SQLite-backed append-only event and artifact storage for production local persistence.
 - CI validation for monorepo build/tests, generated firmware config drift, and ESP32 firmware compilation.
 
 ## Calibration And Safety
@@ -175,6 +178,7 @@ The calibration runtime must provide:
 - actuator safety overlays that can only reduce configured output power.
 - projection and pointer coordinate calibration.
 - session artifacts that persist the calibration profile used by an agent run.
+- operator CLI commands to generate calibration templates, validate calibration profiles, derive linear channel transforms from measured points, and apply profiles to raw samples.
 
 ## Reference Architecture
 

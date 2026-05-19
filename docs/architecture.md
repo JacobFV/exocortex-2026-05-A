@@ -59,6 +59,9 @@ Examples:
 
 - `host_unix_device` -> `host` -> `app_input_text`
 - `host_unix_device` -> `host` -> `device_mic_stt_input_text`
+- `expo_native_device` -> `expo_native` -> `expo_device_microphone_audio`
+- `expo_native_device` -> `expo_native` -> `expo_device_camera_video`
+- `expo_native_device` -> `expo_native` -> `expo_device_speaker_audio`
 - `serial_microcontroller` -> `head_serial_bridge` -> `ext_mic_1_stt_input_text`
 - `serial_microcontroller` -> `head_serial_bridge` -> `ext_mic_2_stt_input_text`
 - `browser_session` -> `browser_...` -> `browser_projected_screen`
@@ -102,7 +105,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 
 - `packages/protocol` defines the durable protocol: devices, modality types/instances/bindings, sessions, events, artifacts, browser sessions, and IDs.
 - `packages/models` owns interchangeable local and hosted model providers.
-- `packages/media` owns STT and TTS providers.
+- `packages/media` owns STT, TTS, and host media capture providers. Local capture providers can wrap host commands for image, audio, or video capture using `{output}`, `{durationMs}`, `{durationSeconds}`, and `{deviceId}` argument templates.
 - `packages/transports` owns serial framing and Unix serial device transport.
 - `packages/hardware` owns typed head bridge configuration for ESPs, ADC channels, analog muxes, and actuator outputs.
 - `packages/calibration` owns calibration profiles, raw-to-calibrated sample conversion, actuator safety overlays, projection/pointer calibration types, and calibration artifacts.
@@ -114,6 +117,20 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `apps/hardware-cli` owns direct serial hardware operations for bench work: config printing, frame listening, bridge inspection/ping, and validated actuator commands.
 - `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
 - `firmware/esp32-head-bridge` is the ESP32 bridge firmware matching the host serial protocol and default hardware config.
+
+## Expo Native Device Bridges
+
+Expo native device integration is modeled as typed modality bridges owned by `apps/expo`. The bridge constructors accept concrete Expo/native modules by dependency injection and expose microphone, camera, and speaker modalities through the same `ModalityBridge` contract as hardware transports.
+
+On startup each bridge emits a real `device.capability` observation and, when available, a `device.permission` observation from the underlying module. Missing native modules or unavailable capabilities are reported as unavailable observations; the app does not synthesize microphone samples, camera frames, or speaker playback results. Supported actions are routed to the injected module methods and emit completion or unavailable observations.
+
+## Storage
+
+Agent sessions can use in-memory stores for tests, JSONL stores for simple local durability, or `SQLiteAgentSessionStore` for production local persistence. The SQLite store initializes its schema on open, uses append-only `agent_session_events` and `agent_session_artifacts` tables, preserves event ordering by session sequence, and allows repeated artifact IDs because artifacts are an evented log, not a mutable key/value table.
+
+## Calibration Operations
+
+Calibration is both a runtime package and an operator workflow. `packages/calibration` can generate a default profile from the head bridge config, validate profile files, derive linear channel transforms from measured raw/expected pairs, replace per-channel calibrations, and apply profiles to raw samples. `apps/hardware-cli` exposes those operations as `calibration-template`, `calibration-validate`, `calibration-derive-linear`, and `calibration-apply-sample`.
 
 ## Hardware Bridge Protocol
 

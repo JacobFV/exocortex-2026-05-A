@@ -8,12 +8,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build -w @exocortex/protocol && tsx src/session-manager.test.ts"
+    "test": "npm run build -w @exocortex/protocol && tsx src/session-manager.test.ts && tsx src/sqlite-agent-session-store.test.ts"
   },
   "dependencies": {
     "@exocortex/browser-session": "0.0.0",
     "@exocortex/models": "0.0.0",
     "@exocortex/peripherals": "0.0.0",
-    "@exocortex/protocol": "0.0.0"
+    "@exocortex/protocol": "0.0.0",
+    "better-sqlite3": "^12.10.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13"
   }
 }
