@@ -1,15 +1,30 @@
+import {
+  LocalCommandAudioCaptureProvider,
+  LocalCommandImageCaptureProvider,
+  LocalCommandVideoCaptureProvider,
+  localCommandCaptureConfigFromEnv
+} from "./local-command-capture.js";
 import { MacOSSayTTSProvider } from "./local-command-audio.js";
 import { OpenAISTTProvider, OpenAITTSProvider } from "./openai-audio.js";
-import type { STTProvider, TTSProvider } from "./types.js";
+import type { AudioCaptureProvider, ImageCaptureProvider, STTProvider, TTSProvider, VideoCaptureProvider } from "./types.js";
 
 export class MediaRouter {
   private readonly sttProviders = new Map<string, STTProvider>();
   private readonly ttsProviders = new Map<string, TTSProvider>();
+  private readonly imageCaptureProviders = new Map<string, ImageCaptureProvider>();
+  private readonly audioCaptureProviders = new Map<string, AudioCaptureProvider>();
+  private readonly videoCaptureProviders = new Map<string, VideoCaptureProvider>();
 
   constructor() {
     this.registerSTT(new OpenAISTTProvider({ id: "openai-stt" }));
     this.registerTTS(new OpenAITTSProvider({ id: "openai-tts" }));
     if (process.platform === "darwin") this.registerTTS(new MacOSSayTTSProvider());
+    const imageCapture = localCommandCaptureConfigFromEnv("image");
+    if (imageCapture) this.registerImageCapture(new LocalCommandImageCaptureProvider(imageCapture));
+    const audioCapture = localCommandCaptureConfigFromEnv("audio");
+    if (audioCapture) this.registerAudioCapture(new LocalCommandAudioCaptureProvider(audioCapture));
+    const videoCapture = localCommandCaptureConfigFromEnv("video");
+    if (videoCapture) this.registerVideoCapture(new LocalCommandVideoCaptureProvider(videoCapture));
   }
 
   registerSTT(provider: STTProvider): void {
@@ -18,6 +33,18 @@ export class MediaRouter {
 
   registerTTS(provider: TTSProvider): void {
     this.ttsProviders.set(provider.id, provider);
+  }
+
+  registerImageCapture(provider: ImageCaptureProvider): void {
+    this.imageCaptureProviders.set(provider.id, provider);
+  }
+
+  registerAudioCapture(provider: AudioCaptureProvider): void {
+    this.audioCaptureProviders.set(provider.id, provider);
+  }
+
+  registerVideoCapture(provider: VideoCaptureProvider): void {
+    this.videoCaptureProviders.set(provider.id, provider);
   }
 
   stt(id = process.env.EXOCORTEX_STT_PROVIDER ?? "openai-stt"): STTProvider {
@@ -32,10 +59,31 @@ export class MediaRouter {
     return provider;
   }
 
-  list(): { stt: string[]; tts: string[] } {
+  imageCapture(id = process.env.EXOCORTEX_IMAGE_CAPTURE_PROVIDER ?? "local-command-image"): ImageCaptureProvider {
+    const provider = this.imageCaptureProviders.get(id);
+    if (!provider) throw new Error(`Unknown image capture provider: ${id}`);
+    return provider;
+  }
+
+  audioCapture(id = process.env.EXOCORTEX_AUDIO_CAPTURE_PROVIDER ?? "local-command-audio"): AudioCaptureProvider {
+    const provider = this.audioCaptureProviders.get(id);
+    if (!provider) throw new Error(`Unknown audio capture provider: ${id}`);
+    return provider;
+  }
+
+  videoCapture(id = process.env.EXOCORTEX_VIDEO_CAPTURE_PROVIDER ?? "local-command-video"): VideoCaptureProvider {
+    const provider = this.videoCaptureProviders.get(id);
+    if (!provider) throw new Error(`Unknown video capture provider: ${id}`);
+    return provider;
+  }
+
+  list(): { stt: string[]; tts: string[]; imageCapture: string[]; audioCapture: string[]; videoCapture: string[] } {
     return {
       stt: [...this.sttProviders.keys()],
-      tts: [...this.ttsProviders.keys()]
+      tts: [...this.ttsProviders.keys()],
+      imageCapture: [...this.imageCaptureProviders.keys()],
+      audioCapture: [...this.audioCaptureProviders.keys()],
+      videoCapture: [...this.videoCaptureProviders.keys()]
     };
   }
 }

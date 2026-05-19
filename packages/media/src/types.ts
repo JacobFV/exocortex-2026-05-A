@@ -19,6 +19,23 @@ export interface SpeechOutput {
   metadata?: Record<string, unknown>;
 }
 
+export interface CapturedMedia {
+  data: Uint8Array;
+  filePath: string;
+  mimeType: string;
+  filename?: string;
+  capturedAt: string;
+  durationMs?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface MediaCaptureOptions {
+  deviceId?: string;
+  durationMs?: number;
+  outputPath?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface STTProvider {
   readonly id: string;
   transcribe(input: AudioInput, signal?: AbortSignal): Promise<TranscriptResult>;
@@ -27,4 +44,19 @@ export interface STTProvider {
 export interface TTSProvider {
   readonly id: string;
   synthesize(text: string, signal?: AbortSignal): Promise<SpeechOutput>;
+}
+
+export interface ImageCaptureProvider {
+  readonly id: string;
+  captureImage(options?: MediaCaptureOptions, signal?: AbortSignal): Promise<CapturedMedia>;
+}
+
+export interface AudioCaptureProvider {
+  readonly id: string;
+  captureAudio(options?: MediaCaptureOptions, signal?: AbortSignal): Promise<CapturedMedia>;
+}
+
+export interface VideoCaptureProvider {
+  readonly id: string;
+  captureVideo(options?: MediaCaptureOptions, signal?: AbortSignal): Promise<CapturedMedia>;
 }
