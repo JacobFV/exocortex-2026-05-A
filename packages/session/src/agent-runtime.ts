@@ -1,5 +1,6 @@
 import { createId, type AgentSession, type AgentSessionEvent, type AgentSessionEventPayload } from "@exocortex/protocol";
-import { ModelRouter, type ChatMessage } from "@exocortex/models";
+import { ModelRouter, type ChatMessage, type ChatStreamEvent, type ToolCall } from "@exocortex/models";
+import { AgentToolRouter } from "./tool-router.js";
 
 export interface AgentRuntimeContext {
   session: AgentSession;
@@ -18,7 +19,7 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
   readonly runtimeId = "model-driven-agent-runtime";
   private readonly histories = new Map<string, ChatMessage[]>();
 
-  constructor(private readonly models = new ModelRouter()) {}
+  constructor(private readonly options: { models?: ModelRouter; tools?: AgentToolRouter; maxToolRounds?: number } = {}) {}
 
   async start(context: AgentRuntimeContext): Promise<void> {
     this.histories.set(context.session.id, [
@@ -57,22 +58,71 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
     history.push({ role: "user", content: userText });
 
     const model = this.models.get(this.selectedModelId(context.session));
+    for (let round = 0; round < this.maxToolRounds; round += 1) {
+      const result = await this.runSingleModelPass(context, history, modalityId);
+      if (result.assistantText) history.push({ role: "assistant", content: result.assistantText });
+      for (const output of result.toolOutputs) history.push({ role: "tool", content: JSON.stringify(output.output), toolCallId: output.toolCallId, name: output.name });
+      if (!result.toolOutputs.length) break;
+      if (round === this.maxToolRounds - 1) {
+        context.emit({
+          type: "session.error",
+          code: "tool_round_limit",
+          message: `Stopped tool execution after ${this.maxToolRounds} model-tool rounds.`,
+          recoverable: true,
+          modalityId
+        });
+      }
+    }
+    this.histories.set(context.session.id, history.slice(-40));
+  }
+
+  private async runSingleModelPass(
+    context: AgentRuntimeContext,
+    history: ChatMessage[],
+    modalityId: AgentSessionEvent["modalityId"]
+  ): Promise<{ assistantText: string; toolOutputs: Array<{ toolCallId: string; name: string; output: unknown }> }> {
     let assistantText = "";
-    for await (const event of model.stream({ messages: history, signal: context.signal })) {
+    const toolOutputs: Array<{ toolCallId: string; name: string; output: unknown }> = [];
+    for await (const event of this.models.get(this.selectedModelId(context.session)).stream({ messages: history, tools: this.tools.definitions(), signal: context.signal })) {
       if (event.type === "text_delta") {
         assistantText += event.text;
         context.emit({ type: "message.delta", role: "assistant", text: event.text, modalityId });
       } else if (event.type === "tool_call") {
-        const toolCallId = createId<"ToolCallId">("tool");
-        context.emit({ type: "tool_call.started", toolCallId, name: event.toolCall.name, input: event.toolCall.arguments, modalityId });
-        context.emit({ type: "tool_call.failed", toolCallId, code: "tool_router_unavailable", message: `No tool router is registered for ${event.toolCall.name}`, modalityId });
+        const output = await this.executeToolCall(context, event.toolCall, modalityId);
+        if (output !== undefined) toolOutputs.push({ toolCallId: event.toolCall.id, name: event.toolCall.name, output });
       }
     }
     if (assistantText) {
-      history.push({ role: "assistant", content: assistantText });
       context.emit({ type: "message.completed", role: "assistant", text: assistantText, modalityId });
     }
-    this.histories.set(context.session.id, history.slice(-40));
+    return { assistantText, toolOutputs };
+  }
+
+  private async executeToolCall(context: AgentRuntimeContext, call: ToolCall, modalityId: AgentSessionEvent["modalityId"]): Promise<unknown | undefined> {
+    const toolCallId = createId<"ToolCallId">("tool");
+    context.emit({ type: "tool_call.started", toolCallId, name: call.name, input: call.arguments, modalityId });
+    try {
+      const result = await this.tools.execute(call, context);
+      for (const event of result.emittedEvents ?? []) context.emit({ ...event, modalityId: event.modalityId ?? modalityId });
+      context.emit({ type: "tool_call.completed", toolCallId, output: result.output, modalityId });
+      return result.output;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      context.emit({ type: "tool_call.failed", toolCallId, code: "tool_execution_failed", message, modalityId });
+      return undefined;
+    }
+  }
+
+  private get models(): ModelRouter {
+    return this.options.models ?? defaultModelRouter;
+  }
+
+  private get tools(): AgentToolRouter {
+    return this.options.tools ?? defaultToolRouter;
+  }
+
+  private get maxToolRounds(): number {
+    return this.options.maxToolRounds ?? 4;
   }
 
   private selectedModelId(session: AgentSession): string {
@@ -81,6 +131,9 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
 }
 
 export { ModelDrivenAgentRuntime as ContinuousAgentRuntime };
+
+const defaultModelRouter = new ModelRouter();
+const defaultToolRouter = new AgentToolRouter();
 
 function observationText(value: unknown): string | undefined {
   if (typeof value === "string") return value;

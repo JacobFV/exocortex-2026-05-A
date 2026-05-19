@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import type { ChatModel, ChatRequest, ChatStreamEvent } from "@exocortex/models";
 import { ModalityRegistry } from "@exocortex/peripherals";
+import { ModelRouter } from "@exocortex/models";
+import { ModelDrivenAgentRuntime } from "./agent-runtime.js";
 import { ModalityActionRouter, type ModalityActionSink } from "./modality-action-router.js";
 import { AgentSessionManager } from "./session-manager.js";
+import { AgentToolRouter } from "./tool-router.js";
 
 const registry = new ModalityRegistry();
 const modalityInstances = registry.createDefaultHostGraph();
@@ -61,3 +65,51 @@ actionManager.act(actionSession.id, outputBinding.id, "actuator.command", { enab
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.deepEqual(sent, [{ actionType: "actuator.command", value: { enabled: true } }]);
 actionRouter.stop();
+
+class ToolCallingModel implements ChatModel {
+  readonly id = "tool-model";
+  readonly provider = "local_rules";
+
+  async *stream(request: ChatRequest): AsyncIterable<ChatStreamEvent> {
+    if (request.messages.some((message) => message.role === "tool")) {
+      yield { type: "text_delta", text: "Tool result incorporated." };
+      yield { type: "done" };
+      return;
+    }
+    assert.ok(request.tools?.some((tool) => tool.name === "record_context"));
+    yield { type: "tool_call", toolCall: { id: "model_tool_1", name: "record_context", arguments: { value: "browser" } } };
+    yield { type: "done" };
+  }
+}
+
+const modelRouter = new ModelRouter([{ id: "local", provider: "local_rules" }]);
+modelRouter.register(new ToolCallingModel());
+modelRouter.setDefault("tool-model");
+const toolRouter = new AgentToolRouter([
+  {
+    definition: {
+      name: "record_context",
+      description: "Record a structured context value.",
+      parameters: {
+        type: "object",
+        properties: { value: { type: "string" } },
+        required: ["value"]
+      }
+    },
+    execute(input) {
+      return { output: { recorded: input.value } };
+    }
+  }
+]);
+const toolSessionManager = new AgentSessionManager({
+  runtime: new ModelDrivenAgentRuntime({ models: modelRouter, tools: toolRouter })
+});
+const toolSession = toolSessionManager.create({ goal: "Use tools", runtime: { provider: "local", model: "tool-model", driver: "model-driven-agent-runtime" } });
+const toolBinding = registry.bindToSession({ sessionId: toolSession.id, modalityInstanceId: modalityInstances[0]!.id });
+toolSessionManager.bindModality(toolSession.id, toolBinding);
+await toolSessionManager.start(toolSession.id);
+toolSessionManager.observe(toolSession.id, toolBinding.id, "text.final", { text: "run tool" });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "tool_call.completed" && (event.output as { recorded?: unknown }).recorded === "browser"));
+assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "message.completed" && event.text === "Tool result incorporated."));
+toolSessionManager.stop(toolSession.id);

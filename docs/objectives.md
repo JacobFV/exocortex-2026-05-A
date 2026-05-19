@@ -25,6 +25,9 @@ The application is an agent runtime first. The frontend is another agent-managed
 - Long-running sessions that can receive observations after startup.
 - Streaming assistant messages.
 - Streaming tool calls, tool results, and tool failures.
+- Tool definitions passed into model requests.
+- Tool-call execution through a host-owned router.
+- Tool results fed back into the agent conversation before the next model pass.
 - Session state transitions: idle, starting, running, paused, waiting_confirm, waiting_answer, finished, stopped, error.
 - Runtime interchangeability across local offline models and third-party hosted models.
 - Model providers:
