@@ -21,6 +21,7 @@ Every observation and action keeps its source modality explicit so the agent can
 - `packages/peripherals` - device/modality registry and hardware/host bridge abstractions
 - `packages/browser-session` - browser/computer-session control abstractions
 - `docs/architecture.md` - architecture articulation and naming rationale
+- `docs/objectives.md` - durable objective ledger for product, hardware, model, and runtime scope
 
 ## Commands
 
