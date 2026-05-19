@@ -147,6 +147,8 @@ The Ollama and OpenAI-compatible providers consume real response streams. Text d
 
 Model-driven sessions use an `AgentToolRouter`. Tool definitions are supplied to each model turn, tool calls are recorded as `tool_call.started`, `tool_call.completed`, or `tool_call.failed`, and successful tool outputs are appended as tool messages before the next bounded model pass.
 
+Electron installs concrete browser tools into that router. A model can create or select a projected Electron browser session, then call tools for navigation, clicks, typing, key presses, scrolling, JavaScript evaluation, and frame capture. Those tool calls also emit browser session events into the agent event log.
+
 ## Reference Learnings From `refs/command-agi-gamma`
 
 The reference checkout is intentionally ignored by Git at `refs/command-agi-gamma`. The most important patterns adopted here are:

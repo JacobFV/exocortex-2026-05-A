@@ -5,6 +5,6 @@
     "outDir": "dist",
     "composite": true
   },
-  "references": [{ "path": "../protocol" }],
+  "references": [{ "path": "../protocol" }, { "path": "../browser-session" }],
   "include": ["src/**/*.ts"]
 }

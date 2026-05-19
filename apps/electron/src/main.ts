@@ -3,15 +3,22 @@ import { BrowserSessionManager } from "@exocortex/browser-session";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
-import { AgentSessionManager, ModalityActionRouter, ModalityObservationRouter } from "@exocortex/session";
+import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter } from "@exocortex/session";
 import { ElectronBrowserController } from "./electron-browser-controller.js";
 
 const modalityRegistry = new ModalityRegistry();
 const hostModalities = modalityRegistry.createDefaultHostGraph();
-const sessionManager = new AgentSessionManager();
+const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
+const toolRouter = new AgentToolRouter(
+  createBrowserAgentTools({
+    manager: browserSessionManager,
+    createSession: createBrowserSessionSurface,
+    defaultSessionId: () => browserSessionManager.list()[0]?.id
+  })
+);
+const sessionManager = new AgentSessionManager({ runtime: new ModelDrivenAgentRuntime({ tools: toolRouter }) });
 const observationRouter = new ModalityObservationRouter(sessionManager);
 const actionRouter = new ModalityActionRouter(sessionManager);
-const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 
 const appTextModality = modalityRegistry.getModalityByKey("app_input_text") ?? hostModalities[0];
 const appTextBridge = new ManualInputBridge(appTextModality);
@@ -94,6 +101,18 @@ ipcMain.handle("exocortex:send-modality-action", (_event, sessionId: AgentSessio
   sessionManager.act(sessionId, bindingId, actionType, value)
 );
 ipcMain.handle("exocortex:create-browser-session", async () => {
+  const browser = await createBrowserSessionSurface();
+  return browserSessionManager.captureFrame(browser.id);
+});
+ipcMain.handle("exocortex:list-browser-sessions", () => browserSessionManager.list());
+ipcMain.handle("exocortex:browser-dispatch", (_event, browserSessionId: BrowserSessionId, action: BrowserAction) =>
+  browserSessionManager.dispatch(browserSessionId, action)
+);
+ipcMain.handle("exocortex:browser-capture", (_event, browserSessionId: BrowserSessionId) =>
+  browserSessionManager.captureFrame(browserSessionId)
+);
+
+async function createBrowserSessionSurface() {
   const device = modalityRegistry.createDeviceInstance({
     typeKey: "browser_session",
     key: `browser_${Date.now()}`,
@@ -113,16 +132,8 @@ ipcMain.handle("exocortex:create-browser-session", async () => {
     transport: "ipc"
   });
   const browser = await browserSessionManager.create(projectedScreen.id);
-  await browserSessionManager.start(browser.id);
-  return browserSessionManager.captureFrame(browser.id);
-});
-ipcMain.handle("exocortex:list-browser-sessions", () => browserSessionManager.list());
-ipcMain.handle("exocortex:browser-dispatch", (_event, browserSessionId: BrowserSessionId, action: BrowserAction) =>
-  browserSessionManager.dispatch(browserSessionId, action)
-);
-ipcMain.handle("exocortex:browser-capture", (_event, browserSessionId: BrowserSessionId) =>
-  browserSessionManager.captureFrame(browserSessionId)
-);
+  return browserSessionManager.start(browser.id);
+}
 
 app.whenReady().then(createMainWindow);
 app.on("window-all-closed", () => {

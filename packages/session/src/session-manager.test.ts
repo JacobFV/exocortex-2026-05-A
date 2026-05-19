@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { BrowserSessionManager, type BrowserController } from "@exocortex/browser-session";
 import type { ChatModel, ChatRequest, ChatStreamEvent } from "@exocortex/models";
 import { ModalityRegistry } from "@exocortex/peripherals";
 import { ModelRouter } from "@exocortex/models";
-import { ModelDrivenAgentRuntime } from "./agent-runtime.js";
+import { ModelDrivenAgentRuntime, type AgentRuntimeContext } from "./agent-runtime.js";
+import { createBrowserAgentTools } from "./browser-tools.js";
 import { ModalityActionRouter, type ModalityActionSink } from "./modality-action-router.js";
 import { AgentSessionManager } from "./session-manager.js";
 import { AgentToolRouter } from "./tool-router.js";
@@ -113,3 +115,53 @@ await new Promise((resolve) => setTimeout(resolve, 0));
 assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "tool_call.completed" && (event.output as { recorded?: unknown }).recorded === "browser"));
 assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "message.completed" && event.text === "Tool result incorporated."));
 toolSessionManager.stop(toolSession.id);
+
+const browserActions: unknown[] = [];
+const browserController: BrowserController = {
+  async start() {},
+  async stop() {},
+  async dispatch(_session, action) {
+    browserActions.push(action);
+  },
+  async captureFrame(session) {
+    return {
+      browserSessionId: session.id,
+      modalityInstanceId: session.modalityInstanceId,
+      width: 800,
+      height: 600,
+      mimeType: "image/png",
+      data: "frame",
+      capturedAt: "2026-05-19T00:00:00.000Z"
+    };
+  }
+};
+const browserManager = new BrowserSessionManager(browserController);
+const browserDevice = registry.createDeviceInstance({ typeKey: "browser_session", key: "test_browser", transport: "ipc" });
+const browserModality = registry.createModalityInstance({ typeKey: "browser_projected_screen", deviceId: browserDevice.id, source: "browser_session", transport: "ipc" });
+const browserTools = createBrowserAgentTools({
+  manager: browserManager,
+  createSession: async () => {
+    const browserSession = await browserManager.create(browserModality.id);
+    return browserManager.start(browserSession.id);
+  }
+});
+const browserToolContext: AgentRuntimeContext = {
+  session: toolSession,
+  signal: new AbortController().signal,
+  emit(event) {
+    return toolSessionManager.events(toolSession.id).find((candidate) => candidate.type === event.type) ?? toolSessionManager.observe(toolSession.id, toolBinding.id, "test", {});
+  }
+};
+const created = await browserTools.find((tool) => tool.definition.name === "browser_create_session")!.execute({}, browserToolContext, {
+  id: "call",
+  name: "browser_create_session",
+  arguments: {}
+});
+assert.equal((created.output as { state?: string }).state, "running");
+const navigate = await browserTools.find((tool) => tool.definition.name === "browser_navigate")!.execute({ url: "https://example.com" }, browserToolContext, {
+  id: "call",
+  name: "browser_navigate",
+  arguments: { url: "https://example.com" }
+});
+assert.deepEqual(browserActions[0], { type: "navigate", url: "https://example.com" });
+assert.equal((navigate.output as { frame?: { width?: number } }).frame?.width, 800);

@@ -11,6 +11,7 @@
     "test": "npm run build -w @exocortex/protocol && tsx src/session-manager.test.ts"
   },
   "dependencies": {
+    "@exocortex/browser-session": "0.0.0",
     "@exocortex/models": "0.0.0",
     "@exocortex/peripherals": "0.0.0",
     "@exocortex/protocol": "0.0.0"
