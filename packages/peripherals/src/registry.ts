@@ -12,6 +12,7 @@ import {
   type ModalityInstanceId,
   type ModalityType
 } from "@exocortex/protocol";
+import type { ActuatorKind, ActuatorChannelConfig, HeadBridgeConfig } from "@exocortex/hardware";
 
 export type DeviceTypeDefinition = Omit<DeviceType, "id"> & { id?: DeviceType["id"] };
 export type ModalityTypeDefinition = Omit<ModalityType, "id"> & { id?: ModalityType["id"] };
@@ -65,6 +66,13 @@ export class ModalityRegistry {
       capabilities: ["device.bridge", "sensor.fanout", "actuator.fanout"]
     });
     this.registerDeviceType({
+      key: "esp32_head_bridge",
+      label: "ESP32 head bridge",
+      attachment: "microcontroller",
+      transports: ["serial", "usb", "wifi", "ble"],
+      capabilities: ["adc.scan", "analog_mux.scan", "actuator.control", "heartbeat"]
+    });
+    this.registerDeviceType({
       key: "browser_session",
       label: "Browser session",
       attachment: "virtual",
@@ -113,6 +121,41 @@ export class ModalityRegistry {
       this.createModalityInstance({ typeKey: "ext_mic_1_stt_input_text", deviceId: serialBridge.id, source: "external_device", transport: "serial" }),
       this.createModalityInstance({ typeKey: "ext_mic_2_stt_input_text", deviceId: serialBridge.id, source: "external_device", transport: "serial" })
     ];
+  }
+
+  createHeadBridgeGraph(config: HeadBridgeConfig, parentDeviceId?: DeviceInstanceId): ModalityInstance[] {
+    if (!this.deviceTypes.size || !this.modalityTypes.size) this.registerDefaultCatalog();
+    const bridge = this.createDeviceInstance({
+      typeKey: "esp32_head_bridge",
+      key: config.bridgeId,
+      label: config.bridgeId,
+      transport: "serial",
+      parentDeviceId,
+      metadata: {
+        baudRate: config.baudRate,
+        heartbeatMs: config.heartbeatMs,
+        scanIntervalMs: config.scanIntervalMs
+      }
+    });
+
+    const instances: ModalityInstance[] = [];
+    for (const channel of config.adcChannels) {
+      instances.push(this.createSensorModality(bridge.id, channel.key, inferSensorKind(channel.key), channel.unit));
+    }
+    for (const mux of config.muxes) {
+      for (const channel of mux.channels) {
+        instances.push(
+          this.createSensorModality(bridge.id, channel.key, inferSensorKind(channel.key), channel.unit, {
+            muxId: mux.id,
+            muxIndex: channel.index
+          })
+        );
+      }
+    }
+    for (const actuator of config.actuators) {
+      instances.push(this.createActuatorModality(bridge.id, actuator.key, inferActuatorKind(actuator.kind), actuator));
+    }
+    return instances;
   }
 
   registerDeviceType(definition: DeviceTypeDefinition): DeviceType {
@@ -176,6 +219,45 @@ export class ModalityRegistry {
     return instance;
   }
 
+  private createSensorModality(deviceId: DeviceInstanceId, key: string, kind: ModalityType["kind"], unit: string, metadata?: Record<string, unknown>): ModalityInstance {
+    this.registerModalityType({
+      key,
+      label: key,
+      direction: "input",
+      kind,
+      capabilities: ["sensor.sample", `unit.${unit}`],
+      defaultPolicy: "observe",
+      metadata
+    });
+    return this.createModalityInstance({
+      typeKey: key,
+      deviceId,
+      source: "microcontroller",
+      transport: "serial",
+      metadata
+    });
+  }
+
+  private createActuatorModality(deviceId: DeviceInstanceId, key: string, kind: ModalityType["kind"], actuator: ActuatorChannelConfig): ModalityInstance {
+    const metadata = { ...actuator } satisfies Record<string, unknown>;
+    this.registerModalityType({
+      key,
+      label: key,
+      direction: "output",
+      kind,
+      capabilities: ["actuator.command"],
+      defaultPolicy: "control",
+      metadata
+    });
+    return this.createModalityInstance({
+      typeKey: key,
+      deviceId,
+      source: "microcontroller",
+      transport: "serial",
+      metadata
+    });
+  }
+
   bindToSession(input: BindModalityInput): AgentSessionModalityBinding {
     const modality = this.requireModalityInstance(input.modalityInstanceId);
     const type = [...this.modalityTypes.values()].find((candidate) => candidate.id === modality.typeId);
@@ -236,5 +318,28 @@ export class ModalityRegistry {
     const instance = this.modalityInstances.get(id);
     if (!instance) throw new Error(`Unknown modality instance: ${id}`);
     return instance;
+  }
+}
+
+function inferSensorKind(key: string): ModalityType["kind"] {
+  if (key.startsWith("eeg_")) return "eeg";
+  if (key.includes("light")) return "sensor";
+  if (key.includes("battery")) return "sensor";
+  if (key.includes("temp")) return "sensor";
+  return "sensor";
+}
+
+function inferActuatorKind(kind: ActuatorKind): ModalityType["kind"] {
+  switch (kind) {
+    case "headlamp":
+      return "lighting";
+    case "laser":
+      return "laser";
+    case "haptic":
+      return "haptic";
+    case "ultrasound_trigger":
+      return "ultrasound";
+    default:
+      return "actuator";
   }
 }
