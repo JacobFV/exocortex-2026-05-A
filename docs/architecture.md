@@ -128,6 +128,8 @@ The host routes inbound frames by `channel` into matching modality instances. Ou
 
 Calibration is applied outside the serial envelope. The bridge remains a raw hardware transport, while `packages/calibration` records the profile used to convert raw ADC/mux/EEG samples into agent-visible values and to tighten actuator limits before commands reach the serial writer.
 
+The checked-in ESP32 firmware header is generated from `packages/hardware` with `npm run generate:head-bridge-config`. `packages/hardware` tests compare the generated header against `firmware/esp32-head-bridge/include/bridge_config.h`, so host pin maps, channel keys, actuator limits, and firmware constants fail validation if they drift.
+
 ## Implemented Runtime Contract
 
 The default runtime is a continuous local runtime. A started session stays running until stopped, and observations delivered through a bound modality are appended to the session event stream and delivered to the runtime. The runtime contract is intentionally host-agnostic:

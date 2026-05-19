@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+#define EXOCORTEX_BRIDGE_ID "head_serial_bridge"
+
 struct AnalogMuxChannel {
   uint8_t index;
   const char* key;

@@ -115,6 +115,7 @@ The ESP bridge firmware must:
 - accept actuator commands for digital outputs, PWM outputs, lasers, headlamps, haptics, and ultrasound trigger pins.
 - emit heartbeat frames.
 - report boot and configuration state.
+- use generated configuration from the host hardware package so firmware constants and host modality keys do not drift.
 
 ## Browser And Computer Sessions
 

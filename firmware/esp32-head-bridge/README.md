@@ -22,3 +22,11 @@ pio run -d firmware/esp32-head-bridge -t upload
 ```
 
 The default pin map is in `include/bridge_config.h` and matches the TypeScript default in `packages/hardware`.
+
+`include/bridge_config.h` is generated from the TypeScript hardware model with:
+
+```sh
+npm run generate:head-bridge-config
+```
+
+Repository validation checks the generated header against the checked-in file.
