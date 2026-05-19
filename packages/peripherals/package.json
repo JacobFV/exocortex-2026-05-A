@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@exocortex/protocol": "0.0.0"
+    "@exocortex/protocol": "0.0.0",
+    "@exocortex/transports": "0.0.0"
   }
 }
