@@ -1,6 +1,6 @@
 # Exocortex
 
-Exocortex is a wearable-first agent runtime. The host can be an Expo device or an Electron/Unix device, while sensors and actuators are connected through serial, BLE, network protocols, browser sessions, native device APIs, and future hardware bridges.
+Exocortex is a wearable-first agent runtime. The host can be an Expo device or an Electron/Unix device, while sensors and actuators are connected through serial, USB serial, network protocols, browser sessions, computer sessions, native device APIs, and ESP-class hardware bridges.
 
 The core idea is that an agent session does not receive one generic input stream. It perceives many first-class modalities:
 
@@ -8,7 +8,7 @@ The core idea is that an agent session does not receive one generic input stream
 - `device_mic_stt_input_text`
 - `ext_mic_1_stt_input_text`
 - `ext_mic_2_stt_input_text`
-- cameras, EEG, ultrasound, lights/lasers, speakers, haptics, browser screens, and future computer sessions
+- cameras, EEG, ultrasound, lights/lasers, speakers, haptics, browser screens, and computer sessions
 
 Every observation and action keeps its source modality explicit so the agent can reason about provenance, trust, latency, and routing.
 
@@ -21,9 +21,13 @@ Every observation and action keeps its source modality explicit so the agent can
 - `packages/media` - STT/TTS providers for OpenAI-compatible audio, local command STT, and macOS speech output
 - `packages/transports` - serial framing and Unix serial transport
 - `packages/hardware` - head bridge ADC, analog mux, and actuator configuration models
+- `packages/calibration` - calibration profiles, sample conversion, and calibration artifacts
+- `packages/safety` - actuator arming, power limits, pulse limits, and cooldown gates
 - `packages/session` - concurrent agent session manager, modality binding, and in-memory event/artifact store
 - `packages/peripherals` - device/modality registry and hardware/host bridge abstractions
-- `packages/browser-session` - browser/computer-session control abstractions
+- `packages/browser-session` - browser session control abstractions
+- `packages/computer-session` - projected computer session control abstractions
+- `apps/hardware-cli` - serial hardware inspection, ping/listen, and validated actuation
 - `docs/architecture.md` - architecture articulation and naming rationale
 - `docs/objectives.md` - durable objective ledger for product, hardware, model, and runtime scope
 - `firmware/esp32-head-bridge` - ESP32 firmware for serial JSON frames, analog mux scanning, ADC sampling, and actuator control
