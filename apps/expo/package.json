@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx src/native-device-bridge.test.ts",
     "dev": "expo start --port 8081"
   },
   "dependencies": {

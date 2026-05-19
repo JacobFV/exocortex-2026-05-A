@@ -86,9 +86,40 @@ export class ModalityRegistry {
       transports: ["ipc", "websocket"],
       capabilities: ["computer.control", "screen.project", "input.pointer", "input.keyboard"]
     });
+    this.registerDeviceType({
+      key: "expo_native_device",
+      label: "Expo native device",
+      attachment: "host",
+      transports: ["local"],
+      capabilities: ["device.microphone", "device.camera", "device.speaker", "permission.runtime"]
+    });
     for (const definition of defaultTextInputModalityTypes) {
       this.registerModalityType(definition);
     }
+    this.registerModalityType({
+      key: "expo_device_microphone_audio",
+      label: "Expo device microphone audio",
+      direction: "input",
+      kind: "audio",
+      capabilities: ["audio.capture", "permission.microphone", "device.capability"],
+      defaultPolicy: "observe"
+    });
+    this.registerModalityType({
+      key: "expo_device_camera_video",
+      label: "Expo device camera video",
+      direction: "duplex",
+      kind: "video",
+      capabilities: ["video.preview", "image.capture", "permission.camera", "device.capability"],
+      defaultPolicy: "observe_and_control"
+    });
+    this.registerModalityType({
+      key: "expo_device_speaker_audio",
+      label: "Expo device speaker audio",
+      direction: "output",
+      kind: "audio",
+      capabilities: ["audio.playback", "audio.route", "device.capability"],
+      defaultPolicy: "control"
+    });
     this.registerModalityType({
       key: "browser_projected_screen",
       label: "Browser projected screen",
@@ -143,6 +174,24 @@ export class ModalityRegistry {
       this.createModalityInstance({ typeKey: "device_mic_stt_input_text", deviceId: host.id, source: "host_device", transport: "local" }),
       this.createModalityInstance({ typeKey: "ext_mic_1_stt_input_text", deviceId: serialBridge.id, source: "external_device", transport: "serial" }),
       this.createModalityInstance({ typeKey: "ext_mic_2_stt_input_text", deviceId: serialBridge.id, source: "external_device", transport: "serial" })
+    ];
+  }
+
+  createDefaultExpoGraph(): ModalityInstance[] {
+    if (!this.deviceTypes.size || !this.modalityTypes.size) this.registerDefaultCatalog();
+    const device = this.createDeviceInstance({
+      typeKey: "expo_native_device",
+      key: "expo_native",
+      label: "Expo native device",
+      transport: "local",
+      metadata: { runtime: "expo" }
+    });
+    return [
+      this.createModalityInstance({ typeKey: "app_input_text", deviceId: device.id, source: "app", transport: "local" }),
+      this.createModalityInstance({ typeKey: "device_mic_stt_input_text", deviceId: device.id, source: "host_device", transport: "local" }),
+      this.createModalityInstance({ typeKey: "expo_device_microphone_audio", deviceId: device.id, source: "host_device", transport: "local" }),
+      this.createModalityInstance({ typeKey: "expo_device_camera_video", deviceId: device.id, source: "host_device", transport: "local" }),
+      this.createModalityInstance({ typeKey: "expo_device_speaker_audio", deviceId: device.id, source: "host_device", transport: "local" })
     ];
   }
 

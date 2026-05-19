@@ -13,6 +13,13 @@ assert.ok(instances.some((instance) => instance.key === "laser_enable" && instan
 assert.ok(registry.listDeviceInstances().some((device) => device.key === "head_serial_bridge"));
 assert.ok(registry.listModalityTypes().some((type) => type.key === "computer_projected_screen" && type.kind === "computer"));
 
+const expoRegistry = new ModalityRegistry();
+const expoInstances = expoRegistry.createDefaultExpoGraph();
+assert.ok(expoRegistry.listDeviceInstances().some((device) => device.key === "expo_native" && device.transport === "local"));
+assert.ok(expoInstances.some((instance) => instance.key === "expo_device_microphone_audio" && instance.kind === "audio"));
+assert.ok(expoInstances.some((instance) => instance.key === "expo_device_camera_video" && instance.direction === "duplex"));
+assert.ok(expoInstances.some((instance) => instance.key === "expo_device_speaker_audio" && instance.direction === "output"));
+
 assert.deepEqual(
   normalizeHeadBridgeFrameValue({
     channel: "battery_voltage",
