@@ -101,10 +101,29 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 ## Current Package Mapping
 
 - `packages/protocol` defines the durable protocol: devices, modality types/instances/bindings, sessions, events, artifacts, browser sessions, and IDs.
+- `packages/models` owns interchangeable local and hosted model providers.
+- `packages/media` owns STT and TTS providers.
+- `packages/transports` owns serial framing and Unix serial device transport.
+- `packages/hardware` owns typed head bridge configuration for ESPs, ADC channels, analog muxes, and actuator outputs.
 - `packages/peripherals` is currently the modality/device registry and bridge layer. The package name may later become `packages/modalities` or `packages/hardware`, but the code now models modalities as the first-class primitive.
 - `packages/session` owns concurrent long-running agent sessions, lifecycle transitions, modality binding, observation/action event emission, artifact recording, event subscriptions, bridge routing, and the runtime callback interface.
 - `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
 - `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
+- `firmware/esp32-head-bridge` is the ESP32 bridge firmware matching the host serial protocol and default hardware config.
+
+## Hardware Bridge Protocol
+
+ESP-class bridges use newline-delimited JSON frames over serial. Sensor frames and actuator commands share the same envelope:
+
+```json
+{"channel":"battery_voltage","type":"sensor.analog_sample","timestamp":"2026-05-19T00:00:00.000Z","value":{"raw":1234,"value":1.234,"unit":"volts","sampleCount":8}}
+```
+
+```json
+{"channel":"headlamp_pwm","type":"actuator.command","timestamp":"2026-05-19T00:00:00.000Z","value":{"enabled":true,"duty":0.4}}
+```
+
+The host routes inbound frames by `channel` into matching modality instances. Outbound `modality.action` events are routed through registered action sinks and written back to the bridge.
 
 ## Implemented Runtime Contract
 

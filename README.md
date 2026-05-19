@@ -17,11 +17,16 @@ Every observation and action keeps its source modality explicit so the agent can
 - `apps/electron` - desktop/Unix host shell
 - `apps/expo` - wearable/mobile host shell
 - `packages/protocol` - shared event, artifact, command, modality, and session types
+- `packages/models` - interchangeable model providers for local rules, Ollama, llama.cpp CLI, and OpenAI-compatible APIs
+- `packages/media` - STT/TTS providers for OpenAI-compatible audio, local command STT, and macOS speech output
+- `packages/transports` - serial framing and Unix serial transport
+- `packages/hardware` - head bridge ADC, analog mux, and actuator configuration models
 - `packages/session` - concurrent agent session manager, modality binding, and in-memory event/artifact store
 - `packages/peripherals` - device/modality registry and hardware/host bridge abstractions
 - `packages/browser-session` - browser/computer-session control abstractions
 - `docs/architecture.md` - architecture articulation and naming rationale
 - `docs/objectives.md` - durable objective ledger for product, hardware, model, and runtime scope
+- `firmware/esp32-head-bridge` - ESP32 firmware for serial JSON frames, analog mux scanning, ADC sampling, and actuator control
 
 ## Commands
 
