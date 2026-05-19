@@ -156,3 +156,7 @@ The reference checkout is intentionally ignored by Git at `refs/command-agi-gamm
 - Content/events should preserve multimodal provenance and artifacts.
 
 The main intentional divergence is that Exocortex promotes modalities above tools. In command-agi-gamma, most capability structure is represented through peripherals and tool schemas. For Exocortex, a capability may still become a tool, but the raw sensory/actuator channel itself is a durable session object.
+
+## Validation
+
+Local validation is `npm run validate`. CI additionally regenerates the ESP32 bridge header and fails if it differs from the checked-in firmware header, then builds the PlatformIO ESP32 firmware.

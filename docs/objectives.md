@@ -142,6 +142,7 @@ The system must support:
 - in-memory stores for tests.
 - JSONL file-backed event and artifact stores for local durable operation.
 - session artifacts for text, JSON, images, audio, video, screenshots, browser recordings, sensor logs, and calibration data.
+- CI validation for monorepo build/tests, generated firmware config drift, and ESP32 firmware compilation.
 
 ## Calibration And Safety
 
