@@ -109,6 +109,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `packages/peripherals` is currently the modality/device registry and bridge layer. The package name may later become `packages/modalities` or `packages/hardware`, but the code now models modalities as the first-class primitive.
 - `packages/session` owns concurrent long-running agent sessions, lifecycle transitions, modality binding, observation/action event emission, artifact recording, event subscriptions, bridge routing, and the runtime callback interface.
 - `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
+- `packages/computer-session` owns projected controllable non-browser computer sessions, pointer/keyboard actions, lifecycle events, and screen projection frames.
 - `apps/hardware-cli` owns direct serial hardware operations for bench work: config printing, frame listening, bridge inspection/ping, and validated actuator commands.
 - `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
 - `firmware/esp32-head-bridge` is the ESP32 bridge firmware matching the host serial protocol and default hardware config.

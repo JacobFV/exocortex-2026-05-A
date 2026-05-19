@@ -11,6 +11,7 @@ assert.ok(instances.some((instance) => instance.key === "eeg_ch_0_raw" && instan
 assert.ok(instances.some((instance) => instance.key === "headlamp_pwm" && instance.kind === "lighting"));
 assert.ok(instances.some((instance) => instance.key === "laser_enable" && instance.kind === "laser"));
 assert.ok(registry.listDeviceInstances().some((device) => device.key === "head_serial_bridge"));
+assert.ok(registry.listModalityTypes().some((type) => type.key === "computer_projected_screen" && type.kind === "computer"));
 
 assert.deepEqual(
   normalizeHeadBridgeFrameValue({

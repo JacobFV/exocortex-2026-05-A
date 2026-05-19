@@ -1,5 +1,6 @@
 export * from "./artifact.js";
 export * from "./browser.js";
+export * from "./computer.js";
 export * from "./device.js";
 export * from "./event.js";
 export * from "./id.js";

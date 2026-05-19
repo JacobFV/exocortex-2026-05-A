@@ -9,6 +9,7 @@ export type ModalityTypeId = Brand<string, "ModalityTypeId">;
 export type ModalityInstanceId = Brand<string, "ModalityInstanceId">;
 export type AgentSessionModalityId = Brand<string, "AgentSessionModalityId">;
 export type BrowserSessionId = Brand<string, "BrowserSessionId">;
+export type ComputerSessionId = Brand<string, "ComputerSessionId">;
 export type ToolCallId = Brand<string, "ToolCallId">;
 
 export function createId<Id extends string>(prefix: string): Brand<string, Id> {

@@ -79,6 +79,13 @@ export class ModalityRegistry {
       transports: ["ipc", "websocket"],
       capabilities: ["browser.control", "screen.project", "input.pointer", "input.keyboard"]
     });
+    this.registerDeviceType({
+      key: "computer_session",
+      label: "Computer session",
+      attachment: "virtual",
+      transports: ["ipc", "websocket"],
+      capabilities: ["computer.control", "screen.project", "input.pointer", "input.keyboard"]
+    });
     for (const definition of defaultTextInputModalityTypes) {
       this.registerModalityType(definition);
     }
@@ -96,6 +103,22 @@ export class ModalityRegistry {
       direction: "input",
       kind: "browser",
       capabilities: ["pointer.click", "pointer.move", "touch.gesture", "keyboard.key", "keyboard.text"],
+      defaultPolicy: "control"
+    });
+    this.registerModalityType({
+      key: "computer_projected_screen",
+      label: "Computer projected screen",
+      direction: "output",
+      kind: "computer",
+      capabilities: ["screen.frame", "screen.project"],
+      defaultPolicy: "observe"
+    });
+    this.registerModalityType({
+      key: "computer_control_input",
+      label: "Computer pointer keyboard input",
+      direction: "input",
+      kind: "computer",
+      capabilities: ["pointer.click", "pointer.move", "keyboard.key", "keyboard.text"],
       defaultPolicy: "control"
     });
   }

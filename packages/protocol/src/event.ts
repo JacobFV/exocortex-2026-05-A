@@ -1,11 +1,13 @@
 import type { AgentSessionArtifact } from "./artifact.js";
 import type { BrowserAction, BrowserProjectionFrame } from "./browser.js";
+import type { ComputerAction, ComputerProjectionFrame } from "./computer.js";
 import type {
   AgentSessionArtifactId,
   AgentSessionEventId,
   AgentSessionId,
   AgentSessionModalityId,
   BrowserSessionId,
+  ComputerSessionId,
   ToolCallId
 } from "./id.js";
 import type { AgentSessionState } from "./session.js";
@@ -35,6 +37,9 @@ export type AgentSessionEvent =
   | (EventBase & { type: "browser.created"; browserSessionId: BrowserSessionId })
   | (EventBase & { type: "browser.projection_frame"; frame: BrowserProjectionFrame })
   | (EventBase & { type: "browser.action"; browserSessionId: BrowserSessionId; action: BrowserAction })
+  | (EventBase & { type: "computer.created"; computerSessionId: ComputerSessionId })
+  | (EventBase & { type: "computer.projection_frame"; frame: ComputerProjectionFrame })
+  | (EventBase & { type: "computer.action"; computerSessionId: ComputerSessionId; action: ComputerAction })
   | (EventBase & { type: "confirm.requested"; prompt: string; requestId: string })
   | (EventBase & { type: "answer.requested"; question: string; requestId: string })
   | (EventBase & { type: "session.finished"; success: boolean; summary?: string })

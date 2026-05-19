@@ -136,6 +136,7 @@ Agents must manage projected controllable sessions:
 - navigation
 - JavaScript evaluation where appropriate
 - browser create/list/navigate/click/type/key/scroll/evaluate/capture tools exposed to model-driven agents.
+- generic computer session protocol and runtime manager for projected non-browser computer surfaces.
 
 The current Electron host must use a real Electron browser controller, not synthetic screen data.
 
