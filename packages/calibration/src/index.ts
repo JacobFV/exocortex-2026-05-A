@@ -91,6 +91,11 @@ export interface CalibrationProfile {
   metadata?: Record<string, unknown>;
 }
 
+export interface CalibrationPointPair {
+  raw: number;
+  expected: number;
+}
+
 export interface CalibratedAnalogSample extends AnalogSample {
   rawValue: number;
   rawUnit: AnalogUnit;
@@ -186,6 +191,111 @@ export function mergeActuatorSafety(config: HeadBridgeConfig, profile: Calibrati
       return safety ? { ...actuator, maxDuty: Math.min(actuator.maxDuty ?? 1, safety.maxDuty) } : { ...actuator };
     })
   };
+}
+
+export function createCalibrationProfile(input: {
+  id: string;
+  name: string;
+  deviceKey: string;
+  calibrations?: ChannelCalibration[];
+  metadata?: Record<string, unknown>;
+  now?: Date;
+}): CalibrationProfile {
+  const now = (input.now ?? new Date()).toISOString();
+  const profile: CalibrationProfile = {
+    id: input.id,
+    name: input.name,
+    deviceKey: input.deviceKey,
+    createdAt: now,
+    updatedAt: now,
+    calibrations: input.calibrations ?? [],
+    metadata: input.metadata
+  };
+  validateCalibrationProfile(profile);
+  return profile;
+}
+
+export function defaultCalibrationProfile(config: HeadBridgeConfig, now = new Date()): CalibrationProfile {
+  const calibrations: ChannelCalibration[] = [
+    ...config.adcChannels.map((channel): AnalogLinearCalibration => ({
+      kind: "analog_linear",
+      channel: channel.key,
+      inputUnit: channel.unit,
+      outputUnit: channel.unit,
+      scale: 1,
+      offset: 0
+    })),
+    ...config.muxes.flatMap((mux) =>
+      mux.channels.map((channel): AnalogLinearCalibration => ({
+        kind: "analog_linear",
+        channel: channel.key,
+        inputUnit: channel.unit,
+        outputUnit: channel.unit,
+        scale: 1,
+        offset: 0
+      }))
+    ),
+    ...config.actuators.map((actuator): ActuatorSafetyCalibration => ({
+      kind: "actuator_safety",
+      channel: actuator.key,
+      maxDuty: actuator.maxDuty ?? 1,
+      maxPulseUs: actuator.kind === "ultrasound_trigger" ? 10_000 : undefined,
+      cooldownMs: actuator.kind === "ultrasound_trigger" ? 100 : undefined,
+      requiresUserArmed: actuator.kind === "laser" || actuator.kind === "ultrasound_trigger"
+    }))
+  ];
+  return createCalibrationProfile({
+    id: `${config.bridgeId}_calibration`,
+    name: `${config.bridgeId} calibration`,
+    deviceKey: config.bridgeId,
+    calibrations,
+    now
+  });
+}
+
+export function deriveLinearCalibration(input: {
+  channel: string;
+  inputUnit: AnalogUnit;
+  outputUnit: AnalogUnit;
+  points: CalibrationPointPair[];
+  clampMin?: number;
+  clampMax?: number;
+}): AnalogLinearCalibration {
+  if (input.points.length < 2) throw new Error("At least two calibration points are required");
+  for (const point of input.points) {
+    assertFiniteNumber(point.raw, `${input.channel}.raw`);
+    assertFiniteNumber(point.expected, `${input.channel}.expected`);
+  }
+  const n = input.points.length;
+  const sumX = input.points.reduce((sum, point) => sum + point.raw, 0);
+  const sumY = input.points.reduce((sum, point) => sum + point.expected, 0);
+  const sumXY = input.points.reduce((sum, point) => sum + point.raw * point.expected, 0);
+  const sumXX = input.points.reduce((sum, point) => sum + point.raw * point.raw, 0);
+  const denominator = n * sumXX - sumX * sumX;
+  if (denominator === 0) throw new Error("Calibration points must contain at least two distinct raw values");
+  const scale = (n * sumXY - sumX * sumY) / denominator;
+  const offset = (sumY - scale * sumX) / n;
+  return {
+    kind: "analog_linear",
+    channel: input.channel,
+    inputUnit: input.inputUnit,
+    outputUnit: input.outputUnit,
+    scale,
+    offset,
+    clampMin: input.clampMin,
+    clampMax: input.clampMax
+  };
+}
+
+export function replaceChannelCalibration(profile: CalibrationProfile, calibration: ChannelCalibration, now = new Date()): CalibrationProfile {
+  const calibrations = profile.calibrations.filter((candidate) => !(candidate.channel === calibration.channel && candidate.kind === calibration.kind));
+  const next: CalibrationProfile = {
+    ...profile,
+    updatedAt: now.toISOString(),
+    calibrations: [...calibrations, calibration]
+  };
+  validateCalibrationProfile(next);
+  return next;
 }
 
 export function calibrationProfileArtifact(input: {

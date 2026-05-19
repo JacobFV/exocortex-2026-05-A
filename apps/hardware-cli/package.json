@@ -12,6 +12,7 @@
     "test": "tsx src/cli.test.ts"
   },
   "dependencies": {
+    "@exocortex/calibration": "0.0.0",
     "@exocortex/hardware": "0.0.0",
     "@exocortex/transports": "0.0.0"
   },

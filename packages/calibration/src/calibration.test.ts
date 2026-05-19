@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import { defaultHeadBridgeConfig } from "@exocortex/hardware";
 import { createId } from "@exocortex/protocol";
-import { applyAnalogCalibration, calibrationProfileArtifact, mergeActuatorSafety, validateCalibrationProfile, type CalibrationProfile } from "./index.js";
+import {
+  applyAnalogCalibration,
+  calibrationProfileArtifact,
+  defaultCalibrationProfile,
+  deriveLinearCalibration,
+  mergeActuatorSafety,
+  replaceChannelCalibration,
+  validateCalibrationProfile,
+  type CalibrationProfile
+} from "./index.js";
 
 const now = "2026-05-19T00:00:00.000Z";
 const profile: CalibrationProfile = {
@@ -88,3 +97,22 @@ assert.throws(
     ),
   /not in hardware config/
 );
+
+const derived = deriveLinearCalibration({
+  channel: "battery_voltage",
+  inputUnit: "raw",
+  outputUnit: "volts",
+  points: [
+    { raw: 0, expected: 0 },
+    { raw: 1000, expected: 2 },
+    { raw: 2000, expected: 4 }
+  ]
+});
+assert.equal(derived.scale, 0.002);
+assert.equal(derived.offset, 0);
+
+const template = defaultCalibrationProfile(config, new Date(now));
+validateCalibrationProfile(template, config);
+assert.ok(template.calibrations.some((calibration) => calibration.kind === "actuator_safety" && calibration.channel === "laser_enable"));
+const replaced = replaceChannelCalibration(template, derived, new Date(now));
+assert.equal(replaced.calibrations.filter((calibration) => calibration.channel === "battery_voltage" && calibration.kind === "analog_linear").length, 1);
