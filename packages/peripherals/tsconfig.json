@@ -5,6 +5,6 @@
     "outDir": "dist",
     "composite": true
   },
-  "references": [{ "path": "../protocol" }, { "path": "../hardware" }],
+  "references": [{ "path": "../protocol" }, { "path": "../hardware" }, { "path": "../calibration" }],
   "include": ["src/**/*.ts"]
 }

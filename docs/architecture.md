@@ -129,6 +129,8 @@ The host routes inbound frames by `channel` into matching modality instances. Ou
 
 Calibration is applied outside the serial envelope. The bridge remains a raw hardware transport, while `packages/calibration` records the profile used to convert raw ADC/mux/EEG samples into agent-visible values and to tighten actuator limits before commands reach the serial writer.
 
+`HeadBridgeSerialSource` normalizes firmware sample payloads into host `AnalogSample` shape before events reach sessions. When constructed with a calibration profile it emits calibrated values and preserves raw values/calibration identifiers in the observation payload.
+
 The checked-in ESP32 firmware header is generated from `packages/hardware` with `npm run generate:head-bridge-config`. `packages/hardware` tests compare the generated header against `firmware/esp32-head-bridge/include/bridge_config.h`, so host pin maps, channel keys, actuator limits, and firmware constants fail validation if they drift.
 
 ## Implemented Runtime Contract

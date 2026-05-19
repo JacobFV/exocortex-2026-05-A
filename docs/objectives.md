@@ -163,6 +163,7 @@ The calibration runtime must provide:
 - linear analog transforms with clamping.
 - ADC reference conversion.
 - EEG baseline and gain conversion.
+- firmware sample normalization before agent perception.
 - actuator safety overlays that can only reduce configured output power.
 - projection and pointer coordinate calibration.
 - session artifacts that persist the calibration profile used by an agent run.
