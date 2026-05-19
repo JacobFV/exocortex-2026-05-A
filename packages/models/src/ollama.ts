@@ -1,4 +1,5 @@
 import type { ChatModel, ChatRequest, ChatStreamEvent, ModelConfig } from "./types.js";
+import { streamUtf8Lines } from "./stream-utils.js";
 
 export class OllamaChatModel implements ChatModel {
   readonly provider = "ollama";
@@ -18,7 +19,7 @@ export class OllamaChatModel implements ChatModel {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         model: this.model,
-        stream: false,
+        stream: true,
         messages: request.messages.map((message) => ({
           role: message.role === "tool" ? "user" : message.role,
           content: message.content
@@ -27,8 +28,11 @@ export class OllamaChatModel implements ChatModel {
       signal: request.signal
     });
     if (!response.ok) throw new Error(`Ollama model ${this.id} request failed: ${response.status} ${await response.text()}`);
-    const payload = (await response.json()) as { message?: { content?: string } };
-    if (payload.message?.content) yield { type: "text_delta", text: payload.message.content };
+    for await (const line of streamUtf8Lines(response.body)) {
+      const payload = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
+      if (payload.message?.content) yield { type: "text_delta", text: payload.message.content };
+      if (payload.done) break;
+    }
     yield { type: "done" };
   }
 }

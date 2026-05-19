@@ -1,4 +1,5 @@
 import type { ChatModel, ChatRequest, ChatStreamEvent, ModelConfig } from "./types.js";
+import { parseJsonObject, streamUtf8Lines } from "./stream-utils.js";
 
 export class OpenAICompatibleChatModel implements ChatModel {
   readonly provider = "openai_compatible";
@@ -24,7 +25,7 @@ export class OpenAICompatibleChatModel implements ChatModel {
       },
       body: JSON.stringify({
         model: this.model,
-        stream: false,
+        stream: true,
         messages: request.messages.map((message) => ({
           role: message.role,
           content: message.content,
@@ -43,41 +44,56 @@ export class OpenAICompatibleChatModel implements ChatModel {
       signal: request.signal
     });
     if (!response.ok) throw new Error(`Model ${this.id} request failed: ${response.status} ${await response.text()}`);
-    const payload = (await response.json()) as OpenAIChatCompletion;
-    const message = payload.choices[0]?.message;
-    if (message?.content) yield { type: "text_delta", text: message.content };
-    for (const call of message?.tool_calls ?? []) {
+    const toolCalls = new Map<number, StreamingToolCall>();
+    let usage: Record<string, unknown> | undefined;
+    for await (const line of streamUtf8Lines(response.body)) {
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice("data:".length).trim();
+      if (data === "[DONE]") break;
+      const payload = JSON.parse(data) as OpenAIChatCompletionChunk;
+      if (payload.usage) usage = payload.usage;
+      for (const choice of payload.choices) {
+        const delta = choice.delta;
+        if (delta.content) yield { type: "text_delta", text: delta.content };
+        for (const call of delta.tool_calls ?? []) {
+          const existing = toolCalls.get(call.index) ?? { id: "", name: "", argumentsText: "" };
+          if (call.id) existing.id = call.id;
+          if (call.function?.name) existing.name += call.function.name;
+          if (call.function?.arguments) existing.argumentsText += call.function.arguments;
+          toolCalls.set(call.index, existing);
+        }
+      }
+    }
+    for (const call of [...toolCalls.values()].filter((candidate) => candidate.id && candidate.name)) {
       yield {
         type: "tool_call",
         toolCall: {
           id: call.id,
-          name: call.function.name,
-          arguments: parseJsonObject(call.function.arguments)
+          name: call.name,
+          arguments: parseJsonObject(call.argumentsText)
         }
       };
     }
-    yield { type: "done", usage: payload.usage };
+    yield { type: "done", usage };
   }
 }
 
-interface OpenAIChatCompletion {
+interface OpenAIChatCompletionChunk {
   choices: Array<{
-    message?: {
+    delta: {
       content?: string;
       tool_calls?: Array<{
+        index: number;
         id: string;
-        function: { name: string; arguments: string };
+        function?: { name?: string; arguments?: string };
       }>;
     };
   }>;
   usage?: Record<string, unknown>;
 }
 
-function parseJsonObject(value: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
+interface StreamingToolCall {
+  id: string;
+  name: string;
+  argumentsText: string;
 }

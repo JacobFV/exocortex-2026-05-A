@@ -143,6 +143,8 @@ The default runtime is a continuous local runtime. A started session stays runni
 
 Production LLM runtimes plug into that contract without changing the session/event/modality model.
 
+The Ollama and OpenAI-compatible providers consume real response streams. Text deltas are emitted as they arrive, and OpenAI-compatible streamed tool-call fragments are accumulated into tool-call events before the runtime marks the stream done.
+
 ## Reference Learnings From `refs/command-agi-gamma`
 
 The reference checkout is intentionally ignored by Git at `refs/command-agi-gamma`. The most important patterns adopted here are:

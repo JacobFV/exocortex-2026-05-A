@@ -33,6 +33,7 @@ The application is an agent runtime first. The frontend is another agent-managed
   - llama.cpp-style local CLI models
   - OpenAI-compatible hosted APIs
   - custom providers through the same interface
+- HTTP model providers must consume streaming responses rather than blocking on full completions.
 
 ## Modalities
 
