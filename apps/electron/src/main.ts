@@ -3,11 +3,12 @@ import { BrowserSessionManager } from "@exocortex/browser-session";
 import type { AgentSessionId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
 import { AgentSessionManager } from "@exocortex/session";
+import { ElectronBrowserController } from "./electron-browser-controller.js";
 
 const modalityRegistry = new ModalityRegistry();
 const hostModalities = modalityRegistry.createDefaultHostGraph();
 const sessionManager = new AgentSessionManager();
-const browserSessionManager = new BrowserSessionManager();
+const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 
 const appTextModality = modalityRegistry.getModalityByKey("app_input_text") ?? hostModalities[0];
 const appTextBridge = new ManualInputBridge(appTextModality);
