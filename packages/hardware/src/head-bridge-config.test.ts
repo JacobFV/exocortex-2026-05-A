@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { actuatorCommandFrame, analogSampleFrame, defaultHeadBridgeConfig, validateHeadBridgeConfig } from "./head-bridge-config.js";
+import { actuatorCommandFrame, analogSampleFrame, defaultHeadBridgeConfig, validateActuatorCommand, validateHeadBridgeConfig } from "./head-bridge-config.js";
 
 const config = defaultHeadBridgeConfig();
 validateHeadBridgeConfig(config);
@@ -7,5 +7,7 @@ validateHeadBridgeConfig(config);
 assert.equal(config.muxes[0]?.channels[0]?.key, "eeg_ch_0_raw");
 assert.equal(analogSampleFrame("battery_voltage", { raw: 1234, value: 1.234, unit: "volts", sampleCount: 8 }).type, "sensor.analog_sample");
 assert.equal(actuatorCommandFrame("laser_enable", { enabled: true }).type, "actuator.command");
+assert.deepEqual(validateActuatorCommand(config, "headlamp_pwm", { enabled: true, duty: 0.5 }), { enabled: true, duty: 0.5 });
+assert.throws(() => validateActuatorCommand(config, "headlamp_pwm", { enabled: true, duty: 1 }), /maxDuty/);
 
 assert.throws(() => validateHeadBridgeConfig({ ...config, baudRate: 0 }), /baudRate/);

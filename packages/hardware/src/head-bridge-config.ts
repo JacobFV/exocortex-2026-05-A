@@ -57,6 +57,12 @@ export interface AnalogSample {
   sampleCount: number;
 }
 
+export interface ValidatedActuatorCommand {
+  enabled: boolean;
+  duty: number;
+  pulseUs?: number;
+}
+
 export function validateHeadBridgeConfig(config: HeadBridgeConfig): void {
   if (!config.bridgeId) throw new Error("bridgeId is required");
   if (config.baudRate <= 0) throw new Error("baudRate must be positive");
@@ -96,6 +102,27 @@ export function actuatorCommandFrame(channel: string, command: Record<string, un
     timestamp,
     value: command
   };
+}
+
+export function validateActuatorCommand(config: HeadBridgeConfig, channel: string, command: Record<string, unknown>): ValidatedActuatorCommand {
+  const actuator = config.actuators.find((candidate) => candidate.key === channel);
+  if (!actuator) throw new Error(`Unknown actuator channel: ${channel}`);
+
+  const enabled = typeof command.enabled === "boolean" ? command.enabled : true;
+  const requestedDuty = typeof command.duty === "number" ? command.duty : enabled ? 1 : 0;
+  const maxDuty = actuator.maxDuty ?? 1;
+  if (requestedDuty < 0) throw new Error(`Actuator duty must be >= 0 for ${channel}`);
+  if (requestedDuty > maxDuty) throw new Error(`Actuator duty ${requestedDuty} exceeds maxDuty ${maxDuty} for ${channel}`);
+
+  const output: ValidatedActuatorCommand = { enabled, duty: requestedDuty };
+  if (command.pulse_us !== undefined) {
+    if (actuator.kind !== "ultrasound_trigger") throw new Error(`pulse_us is only valid for ultrasound trigger channels`);
+    if (typeof command.pulse_us !== "number" || command.pulse_us <= 0 || command.pulse_us > 100000) {
+      throw new Error(`pulse_us must be 1..100000 for ${channel}`);
+    }
+    output.pulseUs = command.pulse_us;
+  }
+  return output;
 }
 
 export function defaultHeadBridgeConfig(): HeadBridgeConfig {

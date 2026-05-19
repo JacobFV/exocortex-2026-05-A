@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { defaultHeadBridgeConfig } from "@exocortex/hardware";
+import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
 import { AgentSessionManager, ModalityActionRouter, ModalityObservationRouter } from "@exocortex/session";
@@ -18,6 +18,7 @@ const appTextBridge = new ManualInputBridge(appTextModality);
 observationRouter.attachBridge(appTextBridge);
 
 const headBridgeModalities = modalityRegistry.createHeadBridgeGraph(defaultHeadBridgeConfig());
+const headBridgeConfig = defaultHeadBridgeConfig();
 const headBridgeSerialPath = process.env.EXOCORTEX_HEAD_BRIDGE_SERIAL;
 let headBridgeSource: HeadBridgeSerialSource | undefined;
 if (headBridgeSerialPath) {
@@ -34,7 +35,15 @@ if (headBridgeSerialPath) {
   );
   for (const modality of headBridgeModalities.filter((candidate) => candidate.direction === "output")) {
     actionRouter.registerSink(modality.id, {
-      send: (actionType, value) => headBridgeSource!.send(modality.key, actionType, value)
+      send: (actionType, value) => {
+        if (actionType !== "actuator.command") throw new Error(`Unsupported hardware action ${actionType} for ${modality.key}`);
+        const command = validateActuatorCommand(headBridgeConfig, modality.key, normalizeRecord(value));
+        return headBridgeSource!.send(modality.key, actionType, {
+          enabled: command.enabled,
+          duty: command.duty,
+          pulse_us: command.pulseUs
+        });
+      }
     });
   }
 }
@@ -126,6 +135,11 @@ app.on("before-quit", () => {
 
 function registryBinding(sessionId: Parameters<AgentSessionManager["listBindings"]>[0], modalityInstanceId: Parameters<ModalityRegistry["bindToSession"]>[0]["modalityInstanceId"]) {
   return modalityRegistry.bindToSession({ sessionId, modalityInstanceId });
+}
+
+function normalizeRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Hardware action value must be an object");
+  return value as Record<string, unknown>;
 }
 
 function renderHtml(): string {
