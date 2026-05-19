@@ -8,7 +8,9 @@
   },
   "references": [
     { "path": "../../packages/protocol" },
+    { "path": "../../packages/hardware" },
     { "path": "../../packages/peripherals" },
+    { "path": "../../packages/transports" },
     { "path": "../../packages/browser-session" },
     { "path": "../../packages/session" }
   ],

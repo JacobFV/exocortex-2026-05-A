@@ -16,6 +16,19 @@ export class ModalityObservationRouter {
     if (unsubscribe) this.unsubs.set(bridge.modality.id, unsubscribe);
   }
 
+  attachObservationSource(key: string, source: { subscribe(listener: (observation: ModalityObservation) => void): () => void; start(): Promise<void>; stop(): Promise<void> }): void {
+    const modalityInstanceId = key as ModalityInstanceId;
+    this.detachBridge(modalityInstanceId);
+    this.bridges.set(modalityInstanceId, {
+      modality: { id: modalityInstanceId } as never,
+      start: () => source.start(),
+      stop: () => source.stop(),
+      subscribe: (listener) => source.subscribe(listener)
+    });
+    const unsubscribe = source.subscribe((observation) => this.routeObservation(observation));
+    this.unsubs.set(modalityInstanceId, unsubscribe);
+  }
+
   detachBridge(modalityInstanceId: ModalityInstanceId): void {
     this.unsubs.get(modalityInstanceId)?.();
     this.unsubs.delete(modalityInstanceId);
