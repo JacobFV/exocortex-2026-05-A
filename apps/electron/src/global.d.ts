@@ -10,6 +10,7 @@ declare global {
       listArtifacts(sessionId: string): Promise<unknown[]>;
       listModalities(): Promise<unknown[]>;
       injectAppText(text: string): Promise<void>;
+      sendModalityAction(sessionId: string, bindingId: string, actionType: string, value: unknown): Promise<unknown>;
       createBrowserSession(): Promise<unknown>;
       listBrowserSessions(): Promise<unknown[]>;
       browserDispatch(browserSessionId: string, action: unknown): Promise<unknown>;

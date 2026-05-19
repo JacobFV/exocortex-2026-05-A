@@ -1,15 +1,16 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { BrowserSessionManager } from "@exocortex/browser-session";
 import { defaultHeadBridgeConfig } from "@exocortex/hardware";
-import type { AgentSessionId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
+import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
-import { AgentSessionManager, ModalityObservationRouter } from "@exocortex/session";
+import { AgentSessionManager, ModalityActionRouter, ModalityObservationRouter } from "@exocortex/session";
 import { ElectronBrowserController } from "./electron-browser-controller.js";
 
 const modalityRegistry = new ModalityRegistry();
 const hostModalities = modalityRegistry.createDefaultHostGraph();
 const sessionManager = new AgentSessionManager();
 const observationRouter = new ModalityObservationRouter(sessionManager);
+const actionRouter = new ModalityActionRouter(sessionManager);
 const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 
 const appTextModality = modalityRegistry.getModalityByKey("app_input_text") ?? hostModalities[0];
@@ -18,18 +19,26 @@ observationRouter.attachBridge(appTextBridge);
 
 const headBridgeModalities = modalityRegistry.createHeadBridgeGraph(defaultHeadBridgeConfig());
 const headBridgeSerialPath = process.env.EXOCORTEX_HEAD_BRIDGE_SERIAL;
+let headBridgeSource: HeadBridgeSerialSource | undefined;
 if (headBridgeSerialPath) {
+  headBridgeSource = new HeadBridgeSerialSource(
+    headBridgeModalities.filter((modality) => modality.direction === "input"),
+    {
+      path: headBridgeSerialPath,
+      baudRate: Number(process.env.EXOCORTEX_HEAD_BRIDGE_BAUD ?? 115200)
+    }
+  );
   observationRouter.attachObservationSource(
     "head_bridge_serial_source",
-    new HeadBridgeSerialSource(
-      headBridgeModalities.filter((modality) => modality.direction === "input"),
-      {
-        path: headBridgeSerialPath,
-        baudRate: Number(process.env.EXOCORTEX_HEAD_BRIDGE_BAUD ?? 115200)
-      }
-    )
+    headBridgeSource
   );
+  for (const modality of headBridgeModalities.filter((candidate) => candidate.direction === "output")) {
+    actionRouter.registerSink(modality.id, {
+      send: (actionType, value) => headBridgeSource!.send(modality.key, actionType, value)
+    });
+  }
 }
+actionRouter.start();
 
 void observationRouter.startAll().catch((error) => {
   console.error("Failed to start modality bridges", error);
@@ -56,6 +65,7 @@ ipcMain.handle("exocortex:create-session", async (_event, goal: string, model = 
     sessionManager.bindModality(session.id, registryBinding(session.id, modality.id));
   }
   observationRouter.bindSession(session.id, sessionManager.listBindings(session.id));
+  actionRouter.bindSession(sessionManager.listBindings(session.id));
   void sessionManager.start(session.id);
   return sessionManager.get(session.id);
 });
@@ -71,6 +81,9 @@ ipcMain.handle("exocortex:list-modalities", () => ({
   modalities: modalityRegistry.listModalityInstances()
 }));
 ipcMain.handle("exocortex:inject-app-text", (_event, text: string) => appTextBridge.injectText(text));
+ipcMain.handle("exocortex:send-modality-action", (_event, sessionId: AgentSessionId, bindingId: AgentSessionModalityId, actionType: string, value: unknown) =>
+  sessionManager.act(sessionId, bindingId, actionType, value)
+);
 ipcMain.handle("exocortex:create-browser-session", async () => {
   const device = modalityRegistry.createDeviceInstance({
     typeKey: "browser_session",
@@ -107,6 +120,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 app.on("before-quit", () => {
+  actionRouter.stop();
   void observationRouter.stopAll();
 });
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { ModalityRegistry } from "@exocortex/peripherals";
+import { ModalityActionRouter, type ModalityActionSink } from "./modality-action-router.js";
 import { AgentSessionManager } from "./session-manager.js";
 
 const registry = new ModalityRegistry();
@@ -41,3 +42,22 @@ assert.ok(manager.events(sessionA.id).some((event) => event.type === "artifact.c
 
 manager.stop(sessionA.id);
 assert.equal(manager.get(sessionA.id)?.state, "stopped");
+
+const actionManager = new AgentSessionManager();
+const actionRouter = new ModalityActionRouter(actionManager);
+const actionSession = actionManager.create({ goal: "Actuate" });
+const outputBinding = registry.bindToSession({ sessionId: actionSession.id, modalityInstanceId: modalityInstances[0]!.id });
+actionManager.bindModality(actionSession.id, outputBinding);
+const sent: Array<{ actionType: string; value: unknown }> = [];
+const sink: ModalityActionSink = {
+  async send(actionType, value) {
+    sent.push({ actionType, value });
+  }
+};
+actionRouter.bindSession(actionManager.listBindings(actionSession.id));
+actionRouter.registerSink(outputBinding.modalityInstanceId, sink);
+actionRouter.start();
+actionManager.act(actionSession.id, outputBinding.id, "actuator.command", { enabled: true });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.deepEqual(sent, [{ actionType: "actuator.command", value: { enabled: true } }]);
+actionRouter.stop();
