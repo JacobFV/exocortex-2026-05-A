@@ -14,7 +14,7 @@ export default function App() {
   const [snapshot, setSnapshot] = useState("");
 
   async function startSession() {
-    const session = manager.create({ goal });
+    const session = manager.create({ goal, runtime: { provider: "local", model: "local-rules", driver: "model-driven-agent-runtime" } });
     for (const modality of registry.listModalityInstances()) {
       manager.bindModality(session.id, registry.bindToSession({ sessionId: session.id, modalityInstanceId: modality.id }));
     }

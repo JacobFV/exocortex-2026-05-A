@@ -50,7 +50,7 @@ export class AgentSessionManager {
       goal: input.goal,
       title: input.title,
       state: "idle",
-      runtime: input.runtime ?? { provider: "local", model: this.runtime.runtimeId },
+      runtime: input.runtime ?? { provider: "local", model: "local-rules", driver: this.runtime.runtimeId },
       modalityBindingIds: modalityBindings.map((binding) => binding.id),
       modalityBindings,
       createdAt: now,

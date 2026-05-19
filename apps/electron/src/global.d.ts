@@ -3,7 +3,7 @@ export {};
 declare global {
   interface Window {
     exocortex: {
-      createSession(goal: string): Promise<unknown>;
+      createSession(goal: string, model?: string): Promise<unknown>;
       listSessions(): Promise<unknown[]>;
       listEvents(sessionId: string): Promise<unknown[]>;
       listBindings(sessionId: string): Promise<unknown[]>;

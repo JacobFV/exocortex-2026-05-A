@@ -39,8 +39,8 @@ async function createMainWindow(): Promise<void> {
   await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(renderHtml())}`);
 }
 
-ipcMain.handle("exocortex:create-session", async (_event, goal: string) => {
-  const session = sessionManager.create({ goal });
+ipcMain.handle("exocortex:create-session", async (_event, goal: string, model = process.env.EXOCORTEX_MODEL ?? "local-rules") => {
+  const session = sessionManager.create({ goal, runtime: { provider: "local", model, driver: "model-driven-agent-runtime" } });
   for (const modality of modalityRegistry.listModalityInstances()) {
     sessionManager.bindModality(session.id, registryBinding(session.id, modality.id));
   }
