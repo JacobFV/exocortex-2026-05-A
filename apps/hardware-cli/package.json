@@ -1,0 +1,21 @@
+{
+  "name": "@exocortex/hardware-cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "exocortex-hardware": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx src/cli.test.ts"
+  },
+  "dependencies": {
+    "@exocortex/hardware": "0.0.0",
+    "@exocortex/transports": "0.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12"
+  }
+}

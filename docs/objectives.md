@@ -103,6 +103,7 @@ The host must support:
 - per-channel routing into modality observations
 - outbound actuator actions
 - explicit failure when a configured physical device is unavailable
+- operator CLI access for config inspection, frame listening, bridge ping/inspection, and validated actuator commands.
 
 ## ESP Bridge Firmware
 

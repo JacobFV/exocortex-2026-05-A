@@ -10,7 +10,7 @@
     "apps/*"
   ],
   "scripts": {
-    "build": "npm run build -w @exocortex/protocol && npm run build -w @exocortex/models && npm run build -w @exocortex/media && npm run build -w @exocortex/transports && npm run build -w @exocortex/hardware && npm run build -w @exocortex/calibration && npm run build -w @exocortex/peripherals && npm run build -w @exocortex/browser-session && npm run build -w @exocortex/session && npm run build -w @exocortex/electron && npm run build -w @exocortex/expo",
+    "build": "npm run build -w @exocortex/protocol && npm run build -w @exocortex/models && npm run build -w @exocortex/media && npm run build -w @exocortex/transports && npm run build -w @exocortex/hardware && npm run build -w @exocortex/calibration && npm run build -w @exocortex/peripherals && npm run build -w @exocortex/browser-session && npm run build -w @exocortex/session && npm run build -w @exocortex/hardware-cli && npm run build -w @exocortex/electron && npm run build -w @exocortex/expo",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "validate": "npm run build && npm run test",
