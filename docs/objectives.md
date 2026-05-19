@@ -163,6 +163,7 @@ The system must store calibration artifacts for:
 - pointer/touch coordinate maps.
 
 Laser, headlamp, ultrasound, and other actuator outputs must be command-gated through explicit modality actions and must be represented in the event log.
+Hazardous actuators must also pass an arming, output power, pulse length, and cooldown safety gate before serial output.
 
 The calibration runtime must provide:
 

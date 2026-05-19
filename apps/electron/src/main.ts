@@ -3,6 +3,7 @@ import { BrowserSessionManager } from "@exocortex/browser-session";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
+import { ActuatorSafetyGate } from "@exocortex/safety";
 import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter } from "@exocortex/session";
 import { ElectronBrowserController } from "./electron-browser-controller.js";
 
@@ -26,6 +27,7 @@ observationRouter.attachBridge(appTextBridge);
 
 const headBridgeModalities = modalityRegistry.createHeadBridgeGraph(defaultHeadBridgeConfig());
 const headBridgeConfig = defaultHeadBridgeConfig();
+const actuatorSafetyGate = ActuatorSafetyGate.fromHeadBridgeConfig(headBridgeConfig);
 const headBridgeSerialPath = process.env.EXOCORTEX_HEAD_BRIDGE_SERIAL;
 let headBridgeSource: HeadBridgeSerialSource | undefined;
 if (headBridgeSerialPath) {
@@ -45,6 +47,7 @@ if (headBridgeSerialPath) {
       send: (actionType, value) => {
         if (actionType !== "actuator.command") throw new Error(`Unsupported hardware action ${actionType} for ${modality.key}`);
         const command = validateActuatorCommand(headBridgeConfig, modality.key, normalizeRecord(value));
+        actuatorSafetyGate.validate(modality.key, command);
         return headBridgeSource!.send(modality.key, actionType, {
           enabled: command.enabled,
           duty: command.duty,
@@ -100,6 +103,13 @@ ipcMain.handle("exocortex:inject-app-text", (_event, text: string) => appTextBri
 ipcMain.handle("exocortex:send-modality-action", (_event, sessionId: AgentSessionId, bindingId: AgentSessionModalityId, actionType: string, value: unknown) =>
   sessionManager.act(sessionId, bindingId, actionType, value)
 );
+ipcMain.handle("exocortex:arm-actuator", (_event, channel: string, reason: string) =>
+  actuatorSafetyGate.arm(channel, reason || "operator requested")
+);
+ipcMain.handle("exocortex:list-actuator-safety", () => ({
+  policies: actuatorSafetyGate.listPolicies(),
+  grants: actuatorSafetyGate.listGrants()
+}));
 ipcMain.handle("exocortex:create-browser-session", async () => {
   const browser = await createBrowserSessionSurface();
   return browserSessionManager.captureFrame(browser.id);

@@ -106,6 +106,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `packages/transports` owns serial framing and Unix serial device transport.
 - `packages/hardware` owns typed head bridge configuration for ESPs, ADC channels, analog muxes, and actuator outputs.
 - `packages/calibration` owns calibration profiles, raw-to-calibrated sample conversion, actuator safety overlays, projection/pointer calibration types, and calibration artifacts.
+- `packages/safety` owns actuator arming, output power limits, pulse limits, and cooldown gates before host commands are written to hardware transports.
 - `packages/peripherals` is currently the modality/device registry and bridge layer. The package name may later become `packages/modalities` or `packages/hardware`, but the code now models modalities as the first-class primitive.
 - `packages/session` owns concurrent long-running agent sessions, lifecycle transitions, modality binding, observation/action event emission, artifact recording, event subscriptions, bridge routing, and the runtime callback interface.
 - `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
