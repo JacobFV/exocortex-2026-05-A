@@ -1,4 +1,5 @@
 export * from "./agent-runtime.js";
+export * from "./artifact-blob-store.js";
 export * from "./browser-tools.js";
 export * from "./event-store.js";
 export * from "./modality-action-router.js";

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { type AgentSessionArtifactId, type AgentSessionEventId, type AgentSessionId } from "@exocortex/protocol";
 import { ModalityRegistry } from "@exocortex/modalities";
 import { SQLiteAgentSessionStore } from "./event-store.js";
+import { FileArtifactBlobStore } from "./artifact-blob-store.js";
 import { AgentSessionManager } from "./session-manager.js";
 
 const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-session-sqlite-"));
@@ -12,6 +13,7 @@ const dbPath = join(tempRoot, "sessions.db");
 
 try {
   const store = new SQLiteAgentSessionStore(dbPath);
+  assert.equal(store.listMigrations()[0]?.version, 1);
   const manager = new AgentSessionManager({ store });
   const session = manager.create({ goal: "Persist sqlite session" });
   const registry = new ModalityRegistry();
@@ -83,6 +85,18 @@ try {
       }),
     /UNIQUE constraint failed/
   );
+
+  const blobStore = new FileArtifactBlobStore(join(tempRoot, "blobs"));
+  const stored = blobStore.put({
+    sessionId: session.id,
+    kind: "image",
+    title: "Frame",
+    data: new Uint8Array([1, 2, 3, 4]),
+    mimeType: "image/png"
+  });
+  assert.equal(stored.artifact.bytes, 4);
+  assert.equal(stored.artifact.metadata?.sha256, stored.sha256);
+  assert.deepEqual([...blobStore.read(stored.artifact)], [1, 2, 3, 4]);
   reopenedStore.close();
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });

@@ -4,6 +4,8 @@ import Database from "better-sqlite3";
 import type { Database as SqliteDatabase, Statement } from "better-sqlite3";
 import type { ContinuityEvent, EventSourcedGraphStore } from "./event-graph-types.js";
 
+export const SQLITE_EVENT_GRAPH_SCHEMA_VERSION = 1;
+
 export class InMemoryEventSourcedGraphStore implements EventSourcedGraphStore {
   private readonly events = new Map<string, ContinuityEvent[]>();
 
@@ -41,6 +43,12 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
     this.db.pragma("busy_timeout = 5000");
     if (dbPath !== ":memory:") this.db.pragma("journal_mode = WAL");
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+
       CREATE TABLE IF NOT EXISTS continuity_events_v2 (
         run_id TEXT NOT NULL,
         sequence INTEGER NOT NULL,
@@ -53,6 +61,7 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
       );
       CREATE INDEX IF NOT EXISTS idx_continuity_events_v2_run_type ON continuity_events_v2(run_id, type);
     `);
+    this.db.prepare("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)").run(SQLITE_EVENT_GRAPH_SCHEMA_VERSION, "initial continuity event graph schema");
     this.append = this.db.prepare(`
       INSERT INTO continuity_events_v2 (run_id, sequence, id, type, created_at, payload_json)
       VALUES (@runId, @sequence, @id, @type, @createdAt, @payloadJson)
@@ -64,6 +73,10 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
 
   close(): void {
     this.db.close();
+  }
+
+  listMigrations(): Array<{ version: number; name: string; applied_at: string }> {
+    return this.db.prepare("SELECT version, name, applied_at FROM schema_migrations ORDER BY version").all() as Array<{ version: number; name: string; applied_at: string }>;
   }
 
   appendEvent(event: ContinuityEvent): void {

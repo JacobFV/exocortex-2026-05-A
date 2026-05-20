@@ -103,6 +103,8 @@ export interface SQLiteAgentSessionStoreOptions {
   readonly wal?: boolean;
 }
 
+export const SQLITE_AGENT_SESSION_SCHEMA_VERSION = 1;
+
 interface SerializedAgentSessionEventRow {
   readonly payload_json: string;
 }
@@ -129,6 +131,7 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
     if (options.wal ?? dbPath !== ":memory:") this.db.pragma("journal_mode = WAL");
 
     this.initializeSchema();
+    this.recordMigration(SQLITE_AGENT_SESSION_SCHEMA_VERSION, "initial agent session event/artifact schema");
     this.appendEventStatement = this.db.prepare(`
       INSERT INTO agent_session_events (id, session_id, sequence, type, created_at, payload_json)
       VALUES (@id, @sessionId, @sequence, @type, @createdAt, @payloadJson)
@@ -195,8 +198,18 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
     this.db.close();
   }
 
+  listMigrations(): Array<{ version: number; name: string; applied_at: string }> {
+    return this.db.prepare("SELECT version, name, applied_at FROM schema_migrations ORDER BY version").all() as Array<{ version: number; name: string; applied_at: string }>;
+  }
+
   private initializeSchema(): void {
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version INTEGER PRIMARY KEY,
+        name TEXT NOT NULL,
+        applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      );
+
       CREATE TABLE IF NOT EXISTS agent_session_events (
         row_id INTEGER PRIMARY KEY AUTOINCREMENT,
         id TEXT NOT NULL UNIQUE,
@@ -229,6 +242,10 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
       CREATE INDEX IF NOT EXISTS agent_session_artifacts_id_idx
         ON agent_session_artifacts (id);
     `);
+  }
+
+  private recordMigration(version: number, name: string): void {
+    this.db.prepare("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)").run(version, name);
   }
 
   private listRows<T>(rows: Array<{ payload_json: string }>, rowType: string): T[] {
