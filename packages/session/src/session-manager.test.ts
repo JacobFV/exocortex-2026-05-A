@@ -178,6 +178,37 @@ assert.deepEqual(capabilityModel.seenToolNames[1], []);
 assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.failed" && event.message.includes("not enabled")));
 capabilityManager.stop(capabilitySession.id);
 
+class ContextAwareModel implements ChatModel {
+  readonly id = "context-model";
+  readonly provider = "local_rules";
+  seenContext = false;
+
+  async *stream(request: ChatRequest): AsyncIterable<ChatStreamEvent> {
+    this.seenContext = request.messages.some((message) => message.role === "system" && message.content.includes("Current EventGraph context") && message.content.includes("context_marker"));
+    yield { type: "text_delta", text: "Context observed." };
+    yield { type: "done" };
+  }
+}
+
+const contextModel = new ContextAwareModel();
+const contextModelRouter = new ModelRouter([{ id: "local", provider: "local_rules" }]);
+contextModelRouter.register(contextModel);
+contextModelRouter.setDefault(contextModel.id);
+const contextManager = new AgentSessionManager({
+  runtime: new ModelDrivenAgentRuntime({
+    models: contextModelRouter,
+    contextProvider: () => JSON.stringify({ marker: "context_marker" })
+  })
+});
+const contextSession = contextManager.create({ goal: "Use graph context", runtime: { provider: "local", model: contextModel.id, driver: "model-driven-agent-runtime" } });
+const contextBinding = registry.bindToSession({ sessionId: contextSession.id, modalityInstanceId: modalityInstances[0]!.id });
+contextManager.bindModality(contextSession.id, contextBinding);
+await contextManager.start(contextSession.id);
+contextManager.observe(contextSession.id, contextBinding.id, "text.final", { text: "use context" });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(contextModel.seenContext, true);
+contextManager.stop(contextSession.id);
+
 const browserActions: unknown[] = [];
 const browserController: BrowserController = {
   async start() {},

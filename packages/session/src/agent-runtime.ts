@@ -20,7 +20,7 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
   readonly runtimeId = "model-driven-agent-runtime";
   private readonly histories = new Map<string, ChatMessage[]>();
 
-  constructor(private readonly options: { models?: ModelRouter; tools?: AgentToolRouter; capabilities?: EventGraphCapabilityRegistry; maxToolRounds?: number } = {}) {}
+  constructor(private readonly options: { models?: ModelRouter; tools?: AgentToolRouter; capabilities?: EventGraphCapabilityRegistry; maxToolRounds?: number; contextProvider?: (session: AgentSession) => string | undefined } = {}) {}
 
   async start(context: AgentRuntimeContext): Promise<void> {
     this.histories.set(context.session.id, [
@@ -56,6 +56,8 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
 
   private async runModelTurn(context: AgentRuntimeContext, userText: string, modalityId: AgentSessionEvent["modalityId"]): Promise<void> {
     const history = this.histories.get(context.session.id) ?? [{ role: "system", content: systemPrompt(context.session) }];
+    const graphContext = this.options.contextProvider?.(context.session);
+    if (graphContext) history.push({ role: "system", content: `Current EventGraph context:\n${graphContext}` });
     history.push({ role: "user", content: userText });
 
     const model = this.models.get(this.selectedModelId(context.session));

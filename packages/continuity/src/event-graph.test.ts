@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSessionEvent } from "@exocortex/protocol";
+import { assembleGraphContext } from "./context-assembly.js";
+import { compareFrames, promoteSelfModification, proposeSelfModification, recordEvaluation } from "./evaluation.js";
 import { createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "./event-graph-behaviors.js";
 import { EventSourcedGraph } from "./event-graph.js";
 import { EventGraphKernel } from "./event-graph-kernel.js";
@@ -13,6 +15,7 @@ import { ReactiveGraphRuntime } from "./reactive-runtime.js";
 
 runStorelessGraphContract();
 runKernelIdempotencyContract();
+runContextEvaluationPromotionContract();
 await runContinuityBehaviorContract();
 runSafetyDenialContract();
 await runStoreContract(new InMemoryEventSourcedGraphStore());
@@ -183,6 +186,51 @@ function runSafetyDenialContract(): void {
   assert.equal(denials.length, 1);
   assert.equal(denials[0]?.data.code, "actuator_safety_rejected");
   assert.equal(typeof denials[0]?.data.commandHash, "string");
+}
+
+function runContextEvaluationPromotionContract(): void {
+  const graph = new EventSourcedGraph({ runId: "run_context_eval", store: new InMemoryEventSourcedGraphStore(), clock: fixedClock("2026-05-20T00:00:00.000Z") });
+  const session = graph.addObject("agent_session", { stableKey: "agent_session:sess_ctx", sessionId: "sess_ctx" }, { actor: "test" });
+  const goal = graph.addObject("goal", { stableKey: "goal:sess_ctx:primary", sessionId: "sess_ctx", text: "Improve context assembly" }, { actor: "test" });
+  const modality = graph.addObject("modality", { stableKey: "modality:app_input_text", key: "app_input_text" }, { actor: "test" });
+  graph.addRelation(session.id, goal.id, "has_goal", {}, { actor: "test" });
+  graph.addRelation(session.id, modality.id, "uses", {}, { actor: "test" });
+  graph.addObject("task", { stableKey: "task:ctx", taskKind: "review_context", status: "open" }, { actor: "test" });
+  const context = assembleGraphContext(graph, { sessionId: "sess_ctx", modalityKey: "app_input_text", recentEvents: 3 });
+  assert.equal(context.sessions.length, 1);
+  assert.equal(context.goals[0]?.data.text, "Improve context assembly");
+  assert.equal(context.modalities[0]?.data.key, "app_input_text");
+  assert.ok(context.openTasks.length);
+
+  const frameA = graph.createFrame("Policy A", { id: "frame_a", actor: "test" });
+  const frameB = graph.createFrame("Policy B", { id: "frame_b", actor: "test" });
+  const comparison = compareFrames(graph, {
+    frameIds: [frameA.id, frameB.id],
+    evaluator: "test",
+    metrics: { [frameA.id]: { score: 0.4 }, [frameB.id]: { score: 0.9 } }
+  });
+  assert.equal(comparison.data.winnerFrameId, frameB.id);
+
+  const policy = graph.addObject("policy", { stableKey: "policy:prompt", prompt: "old" }, { actor: "test" });
+  const proposal = proposeSelfModification(graph, {
+    targetObjectId: policy.id,
+    updates: { prompt: "new" },
+    proposedBy: "test",
+    reason: "evaluation improved",
+    frameId: frameB.id
+  });
+  const evaluation = recordEvaluation(graph, {
+    subjectObjectId: proposal.id,
+    frameId: frameB.id,
+    evaluator: "test",
+    score: 0.95,
+    passed: true,
+    criteria: { minScore: 0.9 },
+    result: { score: 0.95 }
+  });
+  const promoted = promoteSelfModification(graph, proposal.id, { promotedBy: "test", evaluationObjectId: evaluation.id });
+  assert.equal(promoted.data.status, "promoted");
+  assert.equal(graph.getObject(policy.id)?.data.prompt, "new");
 }
 
 {

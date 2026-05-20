@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { type GraphObject, acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveCalibrationProfiles, listActiveSafetyGrants, listSafetyDenials, recordSafetyDenial, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
+import { type GraphObject, acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, assembleGraphContext, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveCalibrationProfiles, listActiveSafetyGrants, listSafetyDenials, recordSafetyDenial, renderGraphContextForPrompt, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
 import { type CalibrationProfile, validateCalibrationProfile } from "@exocortex/calibration";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import { ModelRouter } from "@exocortex/models";
@@ -33,7 +33,23 @@ const toolRouter = new AgentToolRouter(
     defaultSessionId: () => browserSessionManager.list()[0]?.id
   })
 );
-const sessionManager = new AgentSessionManager({ store: agentSessionStore, runtime: new ModelDrivenAgentRuntime({ models: modelRouter, tools: toolRouter, capabilities: capabilityRegistry }), eventGraphKernel });
+const sessionManager = new AgentSessionManager({
+  store: agentSessionStore,
+  runtime: new ModelDrivenAgentRuntime({
+    models: modelRouter,
+    tools: toolRouter,
+    capabilities: capabilityRegistry,
+    contextProvider: (session) =>
+      renderGraphContextForPrompt(
+        assembleGraphContext(eventGraph, {
+          sessionId: session.id,
+          capabilityKinds: ["tool", "model", "modality"],
+          recentEvents: 30
+        })
+      )
+  }),
+  eventGraphKernel
+});
 const observationRouter = new ModalityObservationRouter(sessionManager);
 const actionRouter = new ModalityActionRouter(sessionManager, {
   onActionError(event, error) {
