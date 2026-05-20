@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSessionEvent } from "@exocortex/protocol";
 import { assembleGraphContext, renderGraphContextForPrompt } from "./context-assembly.js";
-import { compareEvaluationSuiteRuns, compareFrames, promoteSelfModification, proposeSelfModification, recordEvaluation, recordEvaluationSuite, recordEvaluationSuiteRun } from "./evaluation.js";
+import { approveSelfModificationPromotion, compareEvaluationSuiteRuns, compareFrames, createSimulationFrames, promoteSelfModification, proposeSelfModification, recordEvaluation, recordEvaluationSuite, recordEvaluationSuiteRun, recordSimulationRun, requestSelfModificationPromotionApproval } from "./evaluation.js";
 import { createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "./event-graph-behaviors.js";
 import { EventSourcedGraph } from "./event-graph.js";
 import { EventGraphKernel } from "./event-graph-kernel.js";
@@ -300,6 +300,35 @@ function runContextEvaluationPromotionContract(): void {
   assert.equal(suiteComparison.data.winnerRunObjectId, deepRun.id);
   assert.equal(suiteComparison.data.winnerCandidateId, "model_deep");
 
+  const simulation = createSimulationFrames(graph, {
+    goal: "retry under alternate policies",
+    createdBy: "test",
+    variants: [
+      { variantId: "baseline", policy: { maxToolRounds: 1 }, capabilitySet: { tools: ["record_context"] } },
+      { variantId: "retry_more_tools", policy: { maxToolRounds: 3 }, capabilitySet: { tools: ["record_context", "browser_navigate"] } }
+    ]
+  });
+  const simulationFrameIds = simulation.data.frameIds as string[];
+  assert.equal(simulationFrameIds.length, 2);
+  const baselineRun = recordSimulationRun(graph, {
+    simulationObjectId: simulation.id,
+    frameId: simulationFrameIds[0]!,
+    runner: "test",
+    status: "failed",
+    metrics: { score: 0.1 },
+    result: { reason: "insufficient tools" }
+  });
+  const retryRun = recordSimulationRun(graph, {
+    simulationObjectId: simulation.id,
+    frameId: simulationFrameIds[1]!,
+    runner: "test",
+    status: "passed",
+    metrics: { score: 0.9 },
+    retryOfRunObjectId: baselineRun.id,
+    result: { summary: "retry succeeded" }
+  });
+  assert.ok(graph.snapshot().relations.some((relation) => relation.type === "retries" && relation.sourceId === retryRun.id && relation.targetId === baselineRun.id));
+
   const frameA = graph.createFrame("Policy A", { id: "frame_a", actor: "test" });
   const frameB = graph.createFrame("Policy B", { id: "frame_b", actor: "test" });
   const comparison = compareFrames(graph, {
@@ -326,8 +355,16 @@ function runContextEvaluationPromotionContract(): void {
     criteria: { minScore: 0.9 },
     result: { score: 0.95 }
   });
-  const promoted = promoteSelfModification(graph, proposal.id, { promotedBy: "test", evaluationObjectId: evaluation.id });
+  const approval = requestSelfModificationPromotionApproval(graph, {
+    selfModificationObjectId: proposal.id,
+    requestedBy: "test",
+    reason: "operator reviewed winning evaluation"
+  });
+  assert.throws(() => promoteSelfModification(graph, proposal.id, { promotedBy: "test", evaluationObjectId: evaluation.id, approvalObjectId: approval.id }), /without approved operator approval/);
+  const approved = approveSelfModificationPromotion(graph, approval.id, { approvedBy: "operator", reason: "evaluation passed" });
+  const promoted = promoteSelfModification(graph, proposal.id, { promotedBy: "test", evaluationObjectId: evaluation.id, approvalObjectId: approved.id });
   assert.equal(promoted.data.status, "promoted");
+  assert.equal(promoted.data.approvalObjectId, approved.id);
   assert.equal(graph.getObject(policy.id)?.data.prompt, "new");
 }
 

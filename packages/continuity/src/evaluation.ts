@@ -81,6 +81,47 @@ export interface EvaluationSuiteComparisonInput {
   now?: Date;
 }
 
+export interface SelfModificationApprovalInput {
+  selfModificationObjectId: string;
+  requestedBy: string;
+  reason: string;
+  expiresAt?: string;
+  now?: Date;
+}
+
+export interface ApproveSelfModificationInput {
+  approvedBy: string;
+  reason: string;
+  now?: Date;
+}
+
+export interface SimulationFrameInput {
+  baseFrameId?: string;
+  goal: string;
+  variants: Array<{
+    variantId: string;
+    label?: string;
+    constraints?: Record<string, unknown>;
+    budget?: Record<string, unknown>;
+    behaviorNames?: string[];
+    capabilitySet?: Record<string, unknown>;
+    policy?: Record<string, unknown>;
+  }>;
+  createdBy: string;
+  now?: Date;
+}
+
+export interface SimulationRunInput {
+  simulationObjectId: string;
+  frameId: string;
+  runner: string;
+  status: "passed" | "failed" | "errored";
+  metrics?: Record<string, number>;
+  result?: Record<string, unknown>;
+  retryOfRunObjectId?: string;
+  now?: Date;
+}
+
 export function recordEvaluation(graph: EventSourcedGraph, input: EvaluationInput): GraphObject {
   const stableKey = `evaluation:${input.evaluator}:${input.frameId ?? "no_frame"}:${input.subjectObjectId ?? "no_subject"}:${stableHash(input.criteria)}:${stableHash(input.result)}`;
   return graph.addObject(
@@ -141,17 +182,59 @@ export function proposeSelfModification(graph: EventSourcedGraph, input: SelfMod
   );
 }
 
-export function promoteSelfModification(graph: EventSourcedGraph, selfModificationObjectId: string, input: { promotedBy: string; evaluationObjectId: string; now?: Date }): GraphObject {
+export function requestSelfModificationPromotionApproval(graph: EventSourcedGraph, input: SelfModificationApprovalInput): GraphObject {
+  const proposal = graph.getObject(input.selfModificationObjectId);
+  if (!proposal || proposal.type !== "self_modification") throw new Error(`Unknown self-modification proposal: ${input.selfModificationObjectId}`);
+  const approval = graph.addObject(
+    "approval",
+    {
+      stableKey: `approval:self_modification_promotion:${proposal.id}:${stableHash({ reason: input.reason })}`,
+      approvalKind: "self_modification_promotion",
+      subjectObjectId: proposal.id,
+      status: "pending",
+      requestedBy: input.requestedBy,
+      reason: input.reason,
+      expiresAt: input.expiresAt
+    },
+    { actor: input.requestedBy, createdAt: input.now }
+  );
+  graph.addRelation(proposal.id, approval.id, "requires_approval", {}, { actor: input.requestedBy, createdAt: input.now });
+  return approval;
+}
+
+export function approveSelfModificationPromotion(graph: EventSourcedGraph, approvalObjectId: string, input: ApproveSelfModificationInput): GraphObject {
+  const approval = requireApproval(graph, approvalObjectId, "self_modification_promotion");
+  graph.patchObject(
+    approval.id,
+    {
+      status: "approved",
+      approvedBy: input.approvedBy,
+      approvalReason: input.reason,
+      approvedAt: (input.now ?? new Date()).toISOString()
+    },
+    { actor: input.approvedBy, createdAt: input.now }
+  );
+  return graph.getObject(approval.id)!;
+}
+
+export function promoteSelfModification(graph: EventSourcedGraph, selfModificationObjectId: string, input: { promotedBy: string; evaluationObjectId: string; approvalObjectId: string; now?: Date }): GraphObject {
   const proposal = graph.getObject(selfModificationObjectId);
   if (!proposal || proposal.type !== "self_modification") throw new Error(`Unknown self-modification proposal: ${selfModificationObjectId}`);
   const evaluation = graph.getObject(input.evaluationObjectId);
   if (!evaluation || evaluation.type !== "evaluation") throw new Error(`Unknown evaluation object: ${input.evaluationObjectId}`);
   if (evaluation.data.passed !== true) throw new Error(`Cannot promote self-modification without passing evaluation: ${input.evaluationObjectId}`);
+  const approval = requireApproval(graph, input.approvalObjectId, "self_modification_promotion");
+  if (approval.data.subjectObjectId !== proposal.id) throw new Error(`Approval ${approval.id} does not approve self-modification ${proposal.id}`);
+  if (approval.data.status !== "approved") throw new Error(`Cannot promote self-modification without approved operator approval: ${approval.id}`);
+  if (typeof approval.data.expiresAt === "string" && Date.parse(approval.data.expiresAt) < (input.now ?? new Date()).getTime()) {
+    throw new Error(`Cannot promote self-modification with expired approval: ${approval.id}`);
+  }
   const patchId = proposal.data.patchId;
   if (typeof patchId !== "string") throw new Error(`Self-modification proposal is missing patchId: ${selfModificationObjectId}`);
   graph.applyPatch(patchId, { actor: input.promotedBy, createdAt: input.now });
   graph.addRelation(proposal.id, evaluation.id, "validated_by", {}, { actor: input.promotedBy, createdAt: input.now });
-  graph.patchObject(proposal.id, { status: "promoted", promotedBy: input.promotedBy, evaluationObjectId: evaluation.id }, { actor: input.promotedBy, createdAt: input.now });
+  graph.addRelation(proposal.id, approval.id, "approved_by", {}, { actor: input.promotedBy, createdAt: input.now });
+  graph.patchObject(proposal.id, { status: "promoted", promotedBy: input.promotedBy, evaluationObjectId: evaluation.id, approvalObjectId: approval.id }, { actor: input.promotedBy, createdAt: input.now });
   return graph.getObject(proposal.id)!;
 }
 
@@ -235,6 +318,62 @@ export function compareEvaluationSuiteRuns(graph: EventSourcedGraph, input: Eval
   return comparison;
 }
 
+export function createSimulationFrames(graph: EventSourcedGraph, input: SimulationFrameInput): GraphObject {
+  if (!input.variants.length) throw new Error("Simulation frame creation requires at least one variant");
+  requireUniqueIds(input.variants.map((variant) => variant.variantId), "variantId");
+  const frameIds = input.variants.map((variant) => {
+    const frame = graph.createFrame(variant.label ?? `${input.goal}: ${variant.variantId}`, {
+      actor: input.createdBy,
+      createdAt: input.now,
+      constraints: {
+        ...(variant.constraints ?? {}),
+        ...(variant.capabilitySet ? { capabilitySet: variant.capabilitySet } : {}),
+        ...(variant.policy ? { policy: variant.policy } : {})
+      },
+      budget: variant.budget,
+      behaviorNames: variant.behaviorNames
+    });
+    return frame.id;
+  });
+  const simulation = graph.addObject(
+    "simulation",
+    {
+      stableKey: `simulation:${stableHash({ baseFrameId: input.baseFrameId, goal: input.goal, variants: input.variants })}`,
+      baseFrameId: input.baseFrameId,
+      goal: input.goal,
+      variants: input.variants,
+      frameIds,
+      status: "ready"
+    },
+    { actor: input.createdBy, frameId: input.baseFrameId, createdAt: input.now }
+  );
+  return simulation;
+}
+
+export function recordSimulationRun(graph: EventSourcedGraph, input: SimulationRunInput): GraphObject {
+  const simulation = graph.getObject(input.simulationObjectId);
+  if (!simulation || simulation.type !== "simulation") throw new Error(`Unknown simulation: ${input.simulationObjectId}`);
+  const frameIds = requireArrayData<string>(simulation, "frameIds");
+  if (!frameIds.includes(input.frameId)) throw new Error(`Frame ${input.frameId} is not part of simulation ${simulation.id}`);
+  const run = graph.addObject(
+    "simulation_run",
+    {
+      stableKey: `simulation_run:${simulation.id}:${input.frameId}:${input.runner}:${stableHash({ status: input.status, metrics: input.metrics, result: input.result, retryOfRunObjectId: input.retryOfRunObjectId })}`,
+      simulationObjectId: simulation.id,
+      frameId: input.frameId,
+      runner: input.runner,
+      status: input.status,
+      metrics: input.metrics ?? {},
+      result: input.result ?? {},
+      retryOfRunObjectId: input.retryOfRunObjectId
+    },
+    { actor: input.runner, frameId: input.frameId, createdAt: input.now }
+  );
+  graph.addRelation(run.id, simulation.id, "runs_simulation", { status: input.status }, { actor: input.runner, frameId: input.frameId, createdAt: input.now });
+  if (input.retryOfRunObjectId) graph.addRelation(run.id, input.retryOfRunObjectId, "retries", {}, { actor: input.runner, frameId: input.frameId, createdAt: input.now });
+  return run;
+}
+
 function requireFrame(graph: EventSourcedGraph, frameId: string): GraphFrame {
   const frame = graph.snapshot().frames.find((candidate) => candidate.id === frameId);
   if (!frame) throw new Error(`Unknown frame: ${frameId}`);
@@ -260,6 +399,12 @@ function requireEvaluationSuiteRun(graph: EventSourcedGraph, objectId: string): 
   const run = graph.getObject(objectId);
   if (!run || run.type !== "evaluation_suite_run") throw new Error(`Unknown evaluation suite run: ${objectId}`);
   return run;
+}
+
+function requireApproval(graph: EventSourcedGraph, objectId: string, approvalKind: string): GraphObject {
+  const approval = graph.getObject(objectId);
+  if (!approval || approval.type !== "approval" || approval.data.approvalKind !== approvalKind) throw new Error(`Unknown ${approvalKind} approval: ${objectId}`);
+  return approval;
 }
 
 function requireArrayData<T>(object: GraphObject, key: string): T[] {
