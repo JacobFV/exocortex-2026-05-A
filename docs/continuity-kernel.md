@@ -1120,7 +1120,7 @@ Acceptance:
 - tool call records capability node and version
 - disabling a capability in graph removes it from model tool definitions
 
-Status: partially implemented. `@exocortex/continuity` includes `ContinuityCapabilityRegistry` for registering graph-native tool, modality, model, device, policy, and behavior capabilities; enabling/disabling capability nodes; listing enabled capabilities by branch/kind; and computing deterministic capability set hashes. Runtime model-turn integration and tool-definition filtering are still pending.
+Status: partially implemented. `@exocortex/continuity` includes `ContinuityCapabilityRegistry` for registering graph-native tool, modality, model, device, policy, and behavior capabilities; idempotent registration of unchanged capability definitions; enabling/disabling capability nodes; listing enabled capabilities by branch/kind; and computing deterministic capability set hashes. Electron publishes its host tools, modality instances, device instances, and selected model into that registry at startup. Runtime model-turn integration and tool-definition filtering are still pending.
 
 ### Stage 8: Safety And Calibration Graph Integration
 

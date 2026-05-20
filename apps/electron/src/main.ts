@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { acceptSafetyGrant, acceptSafetyPolicy, ContinuityKernel, listActiveSafetyGrants, MAIN_BRANCH_ID, SQLiteContinuityStore } from "@exocortex/continuity";
+import { acceptSafetyGrant, acceptSafetyPolicy, ContinuityCapabilityRegistry, ContinuityKernel, listActiveSafetyGrants, MAIN_BRANCH_ID, SQLiteContinuityStore } from "@exocortex/continuity";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
@@ -14,6 +14,7 @@ const modalityRegistry = new ModalityRegistry();
 const hostModalities = modalityRegistry.createDefaultHostGraph();
 const continuityStore = new SQLiteContinuityStore(resolveContinuityDbPath());
 const continuityKernel = new ContinuityKernel({ store: continuityStore });
+const capabilityRegistry = new ContinuityCapabilityRegistry(continuityStore);
 const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 const toolRouter = new AgentToolRouter(
   createBrowserAgentTools({
@@ -49,6 +50,7 @@ for (const policy of actuatorSafetyGate.listPolicies()) {
     active: true
   });
 }
+publishHostCapabilities();
 const headBridgeSerialPath = process.env.EXOCORTEX_HEAD_BRIDGE_SERIAL;
 let headBridgeSource: HeadBridgeSerialSource | undefined;
 if (headBridgeSerialPath) {
@@ -197,6 +199,47 @@ function registryBinding(sessionId: Parameters<AgentSessionManager["listBindings
 function normalizeRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Hardware action value must be an object");
   return value as Record<string, unknown>;
+}
+
+function publishHostCapabilities(): void {
+  for (const tool of toolRouter.definitions()) {
+    capabilityRegistry.register({
+      branchId: MAIN_BRANCH_ID,
+      kind: "tool",
+      key: tool.name,
+      provider: "@exocortex/electron",
+      version: "1",
+      definition: tool
+    });
+  }
+  for (const modality of modalityRegistry.listModalityInstances()) {
+    capabilityRegistry.register({
+      branchId: MAIN_BRANCH_ID,
+      kind: "modality",
+      key: modality.key,
+      provider: modality.source,
+      version: "1",
+      definition: modality
+    });
+  }
+  for (const device of modalityRegistry.listDeviceInstances()) {
+    capabilityRegistry.register({
+      branchId: MAIN_BRANCH_ID,
+      kind: "device",
+      key: device.key,
+      provider: device.transport,
+      version: "1",
+      definition: device
+    });
+  }
+  capabilityRegistry.register({
+    branchId: MAIN_BRANCH_ID,
+    kind: "model",
+    key: process.env.EXOCORTEX_MODEL ?? "local-rules",
+    provider: process.env.EXOCORTEX_MODEL_PROVIDER ?? "local",
+    version: "1",
+    definition: { model: process.env.EXOCORTEX_MODEL ?? "local-rules" }
+  });
 }
 
 function resolveContinuityDbPath(): string {

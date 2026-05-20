@@ -34,6 +34,14 @@ export class ContinuityCapabilityRegistry {
       version: input.version,
       definition: input.definition
     });
+    const existing = this.store.findNodeByStableKey(input.branchId, stableKey);
+    if (
+      existing?.status === (input.enabled === false ? "archived" : "active") &&
+      existing.metadata?.capabilityHash === capabilityHash &&
+      (existing.metadata.enabled ?? true) === (input.enabled ?? true)
+    ) {
+      return { node: existing, capabilityHash };
+    }
     const patch = capabilityPatch(input.branchId, stableKey, "Register capability", now);
     const revisionId = continuityId("rev", patch.id, stableKey, "v1");
     const node: ContinuityNode = {
@@ -58,7 +66,7 @@ export class ContinuityCapabilityRegistry {
     const op: ContinuityPatchOp = {
       id: continuityId("op", patch.id, "capability", stableKey),
       patchId: patch.id,
-      op: this.store.findNodeByStableKey(input.branchId, stableKey) ? "update_node" : "create_node",
+      op: existing ? "update_node" : "create_node",
       createdAt: now.toISOString(),
       payload: {
         ...node,

@@ -116,6 +116,15 @@ async function runStoreContract(store: ContinuityStore): Promise<void> {
     now: new Date("2026-05-19T00:00:12.000Z")
   });
   assert.equal(registered.node.kind, "capability");
+  capabilities.register({
+    branchId: "main",
+    kind: "tool",
+    key: "browser_navigate",
+    provider: "@exocortex/session",
+    version: "1",
+    definition: { name: "browser_navigate" },
+    now: new Date("2026-05-19T00:00:12.500Z")
+  });
   assert.equal(capabilities.listEnabled("main", "tool").length, 1);
   const hashBeforeDisable = capabilities.capabilitySetHash("main");
   capabilities.setEnabled("main", "tool", "browser_navigate", false, new Date("2026-05-19T00:00:13.000Z"));

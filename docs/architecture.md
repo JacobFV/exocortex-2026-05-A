@@ -28,7 +28,7 @@ The continuity kernel owns the event append path, patch proposal and acceptance,
 
 The detailed schema, rejected designs, package refactors, projection rules, behavior rules, branching model, and implementation plan are specified in [continuity-kernel.md](./continuity-kernel.md).
 
-Current session integration is enabled in Electron and opt-in for other hosts: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`. Electron creates a SQLite-backed continuity store at startup, passes its kernel into the session manager, exposes graph node/edge/patch reads over IPC, records actuator arming as safety-grant graph state, and lets the actuator safety gate validate against active graph grants.
+Current session integration is enabled in Electron and opt-in for other hosts: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`. Electron creates a SQLite-backed continuity store at startup, passes its kernel into the session manager, exposes graph node/edge/patch reads over IPC, records actuator arming as safety-grant graph state, publishes host tool/modality/device/model capabilities, and lets the actuator safety gate validate against active graph grants.
 
 ### `agent_sessions`
 
@@ -128,7 +128,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `packages/continuity` owns the continuity kernel foundation: branch-scoped graph state, patch proposal and acceptance, in-memory and SQLite graph stores, event projection, and behavior hooks.
 - Continuity behaviors currently include failure-review and unsupported-claim patch proposal primitives.
 - Continuity branch helpers currently support branch creation, branch diffing, and merge patch proposal.
-- Continuity capability helpers currently register capabilities as graph nodes and compute branch-scoped enabled capability hashes.
+- Continuity capability helpers currently register capabilities as idempotent graph nodes and compute branch-scoped enabled capability hashes.
 - Continuity operational-state helpers currently accept calibration profiles, safety policies, and safety grants through graph patches, mark superseded calibration profiles as non-active while keeping them inspectable, and provide branch-scoped readers for active profiles, policies, and grants.
 - `apps/hardware-cli` owns direct serial hardware operations for bench work: config printing, frame listening, bridge inspection/ping, and validated actuator commands.
 - `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
