@@ -159,6 +159,26 @@ async function runContinuityBehaviorContract(): Promise<void> {
   await runtime.runUntilIdle();
   assert.ok(graph.findObjects({ type: "task", where: { taskKind: "review_failure", subjectObjectId: failure.id } }).length);
 
+  const selfModification = graph.addObject("self_modification", { status: "proposed", targetObjectId: "policy_1" }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.ok(graph.findObjects({ type: "task", where: { taskKind: "evaluate_self_modification", subjectObjectId: selfModification.id } }).length);
+
+  const failedEvaluation = graph.addObject("evaluation", { passed: false, score: 0.1 }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.ok(graph.findObjects({ type: "task", where: { taskKind: "review_failed_evaluation", subjectObjectId: failedEvaluation.id } }).length);
+
+  const safetyDenial = graph.addObject("safety_denial", { channel: "laser_enable", reason: "not armed" }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.ok(graph.findObjects({ type: "task", where: { taskKind: "audit_safety_denial", subjectObjectId: safetyDenial.id } }).length);
+
+  const uncalibratedEvidence = graph.addObject("evidence", { observationType: "sensor.analog_sample", value: { raw: 10 } }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.ok(graph.findObjects({ type: "task", where: { taskKind: "calibrate_sensor_evidence", subjectObjectId: uncalibratedEvidence.id } }).length);
+
+  const mediaArtifact = graph.addObject("artifact", { artifact: { kind: "image", title: "frame", value: { bytes: "inline" } } }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.ok(graph.findObjects({ type: "task", where: { taskKind: "persist_artifact_blob", subjectObjectId: mediaArtifact.id } }).length);
+
   const dependency = graph.addObject("task", { stableKey: "task:dependency", status: "open" }, { actor: "test" });
   const dependent = graph.addObject("task", { stableKey: "task:dependent", status: "blocked" }, { actor: "test" });
   graph.addRelation(dependent.id, dependency.id, "depends_on", {}, { actor: "test" });

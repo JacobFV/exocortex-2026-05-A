@@ -12,7 +12,12 @@ export function createDefaultContinuityBehaviors(options: ContinuityBehaviorOpti
     contradictionReviewBehavior(),
     staleEvidenceReviewBehavior(options),
     hazardousActionApprovalBehavior(),
-    failureReviewBehavior()
+    failureReviewBehavior(),
+    selfModificationEvaluationBehavior(),
+    failedEvaluationReviewBehavior(),
+    safetyDenialAuditBehavior(),
+    uncalibratedSensorEvidenceBehavior(),
+    artifactBlobPersistenceBehavior()
   ];
 }
 
@@ -123,6 +128,117 @@ export function failureReviewBehavior(): GraphBehavior {
         reason: "A runtime, tool, session, or behavior failure was recorded."
       });
       ensureRelation(context, task.id, failure.id, "depends_on", { reason: "failure subject" });
+    }
+  };
+}
+
+export function selfModificationEvaluationBehavior(): GraphBehavior {
+  return {
+    name: "self-modification-evaluation-required",
+    on: ["object.created"],
+    run(context) {
+      const proposal = objectFromEvent(context.event);
+      if (!proposal || proposal.type !== "self_modification" || proposal.data.status !== "proposed") return;
+      const task = ensureTask(context, {
+        stableKey: `task:evaluate_self_modification:${proposal.id}`,
+        title: "Evaluate self-modification proposal",
+        taskKind: "evaluate_self_modification",
+        severity: "high",
+        status: "blocked",
+        subjectObjectId: proposal.id,
+        reason: "Self-modification proposals must pass an evaluation before promotion."
+      });
+      ensureRelation(context, task.id, proposal.id, "depends_on", { reason: "self-modification proposal" });
+    }
+  };
+}
+
+export function failedEvaluationReviewBehavior(): GraphBehavior {
+  return {
+    name: "failed-evaluation-review",
+    on: ["object.created"],
+    run(context) {
+      const evaluation = objectFromEvent(context.event);
+      if (!evaluation || evaluation.type !== "evaluation" || evaluation.data.passed !== false) return;
+      const task = ensureTask(context, {
+        stableKey: `task:review_failed_evaluation:${evaluation.id}`,
+        title: "Review failed evaluation",
+        taskKind: "review_failed_evaluation",
+        severity: "medium",
+        subjectObjectId: evaluation.id,
+        reason: "An evaluation failed and needs operator or agent review."
+      });
+      ensureRelation(context, task.id, evaluation.id, "depends_on", { reason: "failed evaluation" });
+    }
+  };
+}
+
+export function safetyDenialAuditBehavior(): GraphBehavior {
+  return {
+    name: "safety-denial-audit",
+    on: ["object.created"],
+    run(context) {
+      const denial = objectFromEvent(context.event);
+      if (!denial || denial.type !== "safety_denial") return;
+      const task = ensureTask(context, {
+        stableKey: `task:audit_safety_denial:${denial.id}`,
+        title: "Audit safety denial",
+        taskKind: "audit_safety_denial",
+        severity: "hazardous",
+        subjectObjectId: denial.id,
+        reason: "A hazardous or actuator-related command was denied by safety policy."
+      });
+      ensureRelation(context, task.id, denial.id, "depends_on", { reason: "safety denial" });
+    }
+  };
+}
+
+export function uncalibratedSensorEvidenceBehavior(): GraphBehavior {
+  return {
+    name: "uncalibrated-sensor-evidence",
+    on: ["object.created"],
+    run(context) {
+      const evidence = objectFromEvent(context.event);
+      if (!evidence || evidence.type !== "evidence") return;
+      const observationType = String(evidence.data.observationType ?? "");
+      if (!observationType.startsWith("sensor.") && !observationType.includes("analog") && !observationType.includes("eeg")) return;
+      const value = evidence.data.value;
+      if (value && typeof value === "object" && Array.isArray((value as { calibrationIds?: unknown }).calibrationIds)) return;
+      const task = ensureTask(context, {
+        stableKey: `task:calibrate_sensor_evidence:${evidence.id}`,
+        title: "Calibrate sensor evidence",
+        taskKind: "calibrate_sensor_evidence",
+        severity: "medium",
+        subjectObjectId: evidence.id,
+        reason: "Sensor evidence has no calibration identifiers in the observed value."
+      });
+      ensureRelation(context, task.id, evidence.id, "depends_on", { reason: "uncalibrated sensor evidence" });
+    }
+  };
+}
+
+export function artifactBlobPersistenceBehavior(): GraphBehavior {
+  return {
+    name: "artifact-blob-persistence",
+    on: ["object.created"],
+    run(context) {
+      const artifactObject = objectFromEvent(context.event);
+      if (!artifactObject || artifactObject.type !== "artifact") return;
+      const artifact = artifactObject.data.artifact;
+      if (!artifact || typeof artifact !== "object") return;
+      const kind = String((artifact as { kind?: unknown }).kind ?? "");
+      const needsBlob = ["image", "audio", "video", "screenshot", "browser_recording", "sensor_log"].includes(kind);
+      const uri = (artifact as { uri?: unknown }).uri ?? (artifact as { value?: { uri?: unknown } }).value?.uri;
+      if (!needsBlob || typeof uri === "string") return;
+      const task = ensureTask(context, {
+        stableKey: `task:persist_artifact_blob:${artifactObject.id}`,
+        title: "Persist artifact blob",
+        taskKind: "persist_artifact_blob",
+        severity: "medium",
+        subjectObjectId: artifactObject.id,
+        reason: "Media or sensor-log artifact has no durable blob URI."
+      });
+      ensureRelation(context, task.id, artifactObject.id, "depends_on", { reason: "artifact missing blob" });
     }
   };
 }
