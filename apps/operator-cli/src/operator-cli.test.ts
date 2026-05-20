@@ -7,7 +7,14 @@ import { parseOperatorCliArgs, runOperatorCli } from "./index.js";
 
 assert.deepEqual(parseOperatorCliArgs(["continuity-runs", "--db", "graph.db"]), { name: "continuity-runs", db: "graph.db" });
 assert.deepEqual(parseOperatorCliArgs(["continuity-summary", "--db", "graph.db", "--run", "main"]), { name: "continuity-summary", db: "graph.db", run: "main" });
-assert.deepEqual(parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main", "--output", "main.json"]), { name: "continuity-export", db: "graph.db", run: "main", output: "main.json" });
+assert.deepEqual(parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main", "--output", "main.json"]), { name: "continuity-export", db: "graph.db", run: "main", output: "main.json", filter: { objectTypes: undefined, eventTypes: undefined, recentEvents: undefined } });
+assert.deepEqual(parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main", "--output", "main.json", "--object-type", "task,evidence", "--event-type", "object.created", "--recent-events", "5"]), {
+  name: "continuity-export",
+  db: "graph.db",
+  run: "main",
+  output: "main.json",
+  filter: { objectTypes: ["task", "evidence"], eventTypes: ["object.created"], recentEvents: 5 }
+});
 assert.throws(() => parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main"]), /Missing --output/);
 
 const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-operator-cli-"));
@@ -28,7 +35,7 @@ try {
   assert.equal(JSON.parse(summaryLines[0] ?? "{}").objectCount, 1);
 
   const exportLines: string[] = [];
-  await runOperatorCli({ name: "continuity-export", db: dbPath, run: "main", output: exportPath }, (line) => exportLines.push(line));
+  await runOperatorCli({ name: "continuity-export", db: dbPath, run: "main", output: exportPath, filter: { objectTypes: ["task"], recentEvents: 1 } }, (line) => exportLines.push(line));
   assert.equal(JSON.parse(exportLines[0] ?? "{}").status, "ok");
   assert.match(readFileSync(exportPath, "utf8"), /exocortex\.continuity\.run_export\.v1/);
   assert.equal(readContinuityRunExport(exportPath).summary.objectCount, 1);

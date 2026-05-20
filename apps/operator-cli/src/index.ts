@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-import { EventSourcedGraph, exportContinuityRunFromStore, SQLiteEventSourcedGraphStore, writeContinuityRunExport } from "@exocortex/continuity";
+import { EventSourcedGraph, type ContinuityRunExportFilter, exportContinuityRunFromStore, SQLiteEventSourcedGraphStore, writeContinuityRunExport } from "@exocortex/continuity";
 
 export type OperatorCliCommand =
   | { name: "continuity-runs"; db: string }
   | { name: "continuity-summary"; db: string; run: string }
-  | { name: "continuity-export"; db: string; run: string; output: string };
+  | { name: "continuity-export"; db: string; run: string; output: string; filter: ContinuityRunExportFilter };
 
 export function parseOperatorCliArgs(argv: string[]): OperatorCliCommand {
   const [command, ...rest] = argv;
@@ -15,7 +15,7 @@ export function parseOperatorCliArgs(argv: string[]): OperatorCliCommand {
     case "continuity-summary":
       return { name: "continuity-summary", db: required(options, "db"), run: required(options, "run") };
     case "continuity-export":
-      return { name: "continuity-export", db: required(options, "db"), run: required(options, "run"), output: required(options, "output") };
+      return { name: "continuity-export", db: required(options, "db"), run: required(options, "run"), output: required(options, "output"), filter: exportFilterFromOptions(options) };
     default:
       throw new Error(usage(command));
   }
@@ -43,12 +43,24 @@ export async function runOperatorCli(command: OperatorCliCommand, writeLine: (li
       );
       return;
     }
-    const exported = exportContinuityRunFromStore(store, command.run);
+    const exported = exportContinuityRunFromStore(store, command.run, new Date(), command.filter);
     writeContinuityRunExport(command.output, exported);
     writeLine(JSON.stringify({ status: "ok", output: command.output, runId: command.run, eventCount: exported.summary.eventCount }));
   } finally {
     store.close();
   }
+}
+
+function exportFilterFromOptions(options: Record<string, string | undefined>): ContinuityRunExportFilter {
+  return {
+    objectTypes: commaList(options["object-type"]),
+    eventTypes: commaList(options["event-type"]),
+    recentEvents: options["recent-events"] ? Number(options["recent-events"]) : undefined
+  };
+}
+
+function commaList(value: string | undefined): string[] | undefined {
+  return value ? value.split(",").map((item) => item.trim()).filter(Boolean) : undefined;
 }
 
 function parseOptions(argv: string[]): Record<string, string | undefined> {
@@ -78,7 +90,7 @@ function usage(command?: string): string {
   return `${prefix}Usage:
   exocortex-operator continuity-runs --db continuity-events.db
   exocortex-operator continuity-summary --db continuity-events.db --run main
-  exocortex-operator continuity-export --db continuity-events.db --run main --output continuity-run-main.json`;
+  exocortex-operator continuity-export --db continuity-events.db --run main --output continuity-run-main.json [--object-type task,evidence] [--event-type object.created] [--recent-events 100]`;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

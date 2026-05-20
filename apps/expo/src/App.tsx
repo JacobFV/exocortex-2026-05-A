@@ -1,6 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
+import { EventGraphKernel, EventSourcedGraph, InMemoryEventSourcedGraphStore, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "@exocortex/continuity";
 import { ModalityRegistry } from "@exocortex/modalities";
+import type { AgentSessionId } from "@exocortex/protocol";
 import { AgentSessionManager, ModalityObservationRouter } from "@exocortex/session";
 import { createExpoNativeDeviceBridges } from "./native-device-bridge";
 
@@ -10,12 +12,32 @@ export default function App() {
     next.createDefaultExpoGraph();
     return next;
   }, []);
-  const manager = useMemo(() => new AgentSessionManager(), []);
+  const eventGraph = useMemo(() => new EventSourcedGraph({ runId: "expo", store: new InMemoryEventSourcedGraphStore() }), []);
+  const eventGraphKernel = useMemo(() => new EventGraphKernel({
+    graph: eventGraph,
+    behaviors: createDefaultContinuityBehaviors(),
+    relationBehaviors: createDefaultContinuityRelationBehaviors()
+  }), [eventGraph]);
+  const manager = useMemo(() => new AgentSessionManager({ eventGraphKernel }), [eventGraphKernel]);
   const observationRouter = useMemo(() => new ModalityObservationRouter(manager), [manager]);
   const nativeBridges = useMemo(() => createExpoNativeDeviceBridges(registry.listModalityInstances()), [registry]);
   const nativeBridgesAttached = useRef(false);
   const [goal, setGoal] = useState("Run wearable exocortex agent session.");
-  const [snapshot, setSnapshot] = useState("");
+  const [selectedView, setSelectedView] = useState<"sessions" | "events" | "modalities" | "graph" | "artifacts">("sessions");
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>();
+  const [snapshot, setSnapshot] = useState<Record<string, unknown>>({});
+
+  useEffect(() => {
+    const refresh = () => setSnapshot(buildSnapshot());
+    const unsubscribeSession = manager.subscribe("*", refresh);
+    const unsubscribeGraph = eventGraph.subscribe(refresh);
+    refresh();
+    return () => {
+      unsubscribeSession();
+      unsubscribeGraph();
+      eventGraphKernel.close();
+    };
+  }, [eventGraph, eventGraphKernel, manager]);
 
   async function startSession() {
     const session = manager.create({ goal, runtime: { provider: "local", model: "local-rules", driver: "model-driven-agent-runtime" } });
@@ -31,12 +53,27 @@ export default function App() {
     observationRouter.bindSession(session.id, manager.listBindings(session.id));
     await manager.start(session.id);
     await Promise.all(nativeBridges.map((bridge) => bridge.refreshCapability()));
-    setSnapshot(JSON.stringify({
+    setActiveSessionId(session.id);
+    setSnapshot(buildSnapshot(session.id));
+  }
+
+  function buildSnapshot(sessionId = activeSessionId): Record<string, unknown> {
+    return {
       sessions: manager.list(),
-      events: manager.events(session.id),
+      events: sessionId ? manager.events(sessionId as AgentSessionId) : [],
+      artifacts: sessionId ? manager.artifacts(sessionId as AgentSessionId) : [],
       devices: registry.listDeviceInstances(),
-      modalities: registry.listModalityInstances()
-    }, null, 2));
+      modalities: registry.listModalityInstances(),
+      graph: eventGraph.snapshot()
+    };
+  }
+
+  function visibleSnapshot(): unknown {
+    if (selectedView === "sessions") return { sessions: snapshot.sessions };
+    if (selectedView === "events") return { events: snapshot.events };
+    if (selectedView === "artifacts") return { artifacts: snapshot.artifacts };
+    if (selectedView === "modalities") return { devices: snapshot.devices, modalities: snapshot.modalities };
+    return snapshot.graph;
   }
 
   return (
@@ -50,8 +87,13 @@ export default function App() {
           style={{ minHeight: 92, color: "#eef2f4", borderColor: "#2b333a", borderWidth: 1, padding: 10 }}
         />
         <Button title="Start agent session" onPress={startSession} />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {(["sessions", "events", "modalities", "graph", "artifacts"] as const).map((view) => (
+            <Button key={view} title={view} onPress={() => setSelectedView(view)} />
+          ))}
+        </View>
         <View style={{ borderColor: "#2b333a", borderWidth: 1, padding: 12 }}>
-          <Text style={{ color: "#eef2f4", fontFamily: "Courier" }}>{snapshot || "No session yet."}</Text>
+          <Text style={{ color: "#eef2f4", fontFamily: "Courier" }}>{JSON.stringify(visibleSnapshot(), null, 2)}</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
