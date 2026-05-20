@@ -64,7 +64,7 @@ export class OpenAICompatibleChatModel implements ChatModel {
       }),
       signal: request.signal
     });
-    if (!response.ok) throw new Error(`Model ${this.id} request failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw new Error(`Model ${this.id} request failed: ${response.status} ${redactSecrets(await response.text())}`);
     const toolCalls = new Map<number, StreamingToolCall>();
     let usage: Record<string, unknown> | undefined;
     for await (const line of streamUtf8Lines(response.body)) {
@@ -97,6 +97,10 @@ export class OpenAICompatibleChatModel implements ChatModel {
     }
     yield { type: "done", usage };
   }
+}
+
+function redactSecrets(value: string): string {
+  return value.replace(/sk-[A-Za-z0-9_-]+/g, "sk-REDACTED");
 }
 
 interface OpenAIChatCompletionChunk {

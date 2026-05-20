@@ -35,7 +35,7 @@ export class OpenAISTTProvider implements STTProvider {
       body: form,
       signal
     });
-    if (!response.ok) throw new Error(`STT failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw new Error(`STT failed: ${response.status} ${redactSecrets(await response.text())}`);
     const payload = (await response.json()) as { text?: string; language?: string; duration?: number };
     return {
       text: payload.text ?? "",
@@ -71,10 +71,14 @@ export class OpenAITTSProvider implements TTSProvider {
       body: JSON.stringify({ model: this.model, voice: this.voice, input: text, format: "wav" }),
       signal
     });
-    if (!response.ok) throw new Error(`TTS failed: ${response.status} ${await response.text()}`);
+    if (!response.ok) throw new Error(`TTS failed: ${response.status} ${redactSecrets(await response.text())}`);
     return {
       data: new Uint8Array(await response.arrayBuffer()),
       mimeType: "audio/wav"
     };
   }
+}
+
+function redactSecrets(value: string): string {
+  return value.replace(/sk-[A-Za-z0-9_-]+/g, "sk-REDACTED");
 }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { OpenAICompatibleChatModel } from "./openai-compatible.js";
 import { ModelRouter } from "./model-router.js";
 import { streamUtf8Lines } from "./stream-utils.js";
 
@@ -39,3 +40,21 @@ const llamaRouter = new ModelRouter([
   { id: "llama", provider: "llama_cpp_cli", command: "llama-cli", args: ["--version"] }
 ]);
 assert.equal((await llamaRouter.health("llama"))[0]?.status, "configured");
+
+{
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response('{"error":{"message":"Incorrect API key provided: sk-secret"}}', { status: 401 });
+  try {
+    const model = new OpenAICompatibleChatModel({ id: "redaction", provider: "openai_compatible", apiKey: "sk-secret" });
+    await assert.rejects(
+      async () => {
+        for await (const _event of model.stream({ messages: [{ role: "user", content: "test" }] })) {
+          // consume
+        }
+      },
+      /sk-REDACTED/
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
