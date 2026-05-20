@@ -6,5 +6,8 @@ dist/
 .DS_Store
 coverage/
 *.log
+.env
+.env.*
+config/local/
 refs/command-agi-gamma/
 refs/activegraph/

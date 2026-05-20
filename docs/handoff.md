@@ -53,6 +53,12 @@ The repo currently includes:
   - capability registry
   - operational safety/calibration state
   - default continuity behaviors
+- Graph context assembly is wired into Electron model turns.
+- Evaluation objects, frame comparison, and self-modification promotion primitives are implemented.
+- Electron uses SQLite-backed session persistence and file-backed artifact blob storage.
+- Electron operator dashboard includes sessions, events, modalities, browser projection, media, safety audit, calibration, transport health, graph inspection, and artifacts.
+- Expo has live views for sessions, events, modalities, graph state, and artifacts.
+- Serial transport exposes health counters, framing error recovery, bounded write queue, optional reconnect, and device identity capture.
 - Operator CLI for continuity run listing, summaries, and export files.
 - Hardware CLI for config, serial inspection, ping/listen, actuation, and calibration operations.
 - Electron push events for session and continuity updates.
@@ -62,6 +68,21 @@ The repo currently includes:
 Recent architectural commits:
 
 ```txt
+22da402 Tighten secret redaction
+63cfda7 Redact provider secret errors
+1ecbc69 Add filtered exports and Expo graph views
+cf7df41 Harden serial transport health
+5023f61 Wire Electron media artifacts
+1018ef5 Add artifact blobs and schema migrations
+5cee09a Expand continuity behavior coverage
+c875bf5 Add graph context and evaluation promotion
+6683318 Audit rejected actuator actions
+d292983 Attach graph calibration to serial bridge
+ffb7d98 Expose real model health
+64c3ed7 Record operator browser actions
+2daddb3 Split Electron renderer HTML
+3bf9920 Persist Electron agent sessions
+d690616 Build Electron operator dashboard
 9291add Push Electron session and continuity events
 c65d5e5 Add operator continuity CLI
 c262962 Add continuity run export format
@@ -79,6 +100,7 @@ d95a212 Add event-sourced continuity graph runtime
 Read these before making large changes:
 
 - `docs/objectives.md`
+- `docs/configuration.md`
 - `docs/architecture.md`
 - `docs/continuity-kernel.md`
 - `docs/remaining-work.md`
@@ -88,16 +110,18 @@ Read these before making large changes:
 
 The durable backlog is `docs/remaining-work.md`. The highest-leverage next work is:
 
-1. Build a real production Electron UI over the existing runtime.
-2. Add richer graph context assembly for agents.
-3. Add evaluation objects and frame/run comparison.
-4. Implement self-modification promotion flow with provenance.
-5. Bring up real physical devices and harden transports.
-6. Build real STT/TTS/camera/media bridges.
-7. Attach accepted calibration profiles to live serial modality bridges.
-8. Add graph-backed approval UI and audit views for hazardous actions.
-9. Add richer operator graph inspection and filtered exports.
-10. Add production artifact blob/file storage.
+1. Rotate and replace the exposed OpenAI key in `config/local/.env`; current live check returns `401 invalid_api_key`.
+2. Replace inline Electron HTML with a real renderer bundle and browser-level smoke tests.
+3. Build continuous STT/TTS/camera modality bridges, not only provider/artifact workflows.
+4. Bring up one physical ESP head bridge and validate calibrated samples plus gated actuator output end to end.
+5. Add pre-execution graph-backed approval workflow for hazardous actuator commands.
+6. Add migration steps beyond current schema version markers.
+7. Add artifact retention/integrity/encryption operations.
+8. Add richer graph export/UI filters by session, modality, frame, time, relation, and object data fields.
+
+## Local Configuration
+
+Local secrets are in ignored `config/local/.env`. Use `config/examples/env.example` as the template. Do not reintroduce a root committed `.env`.
 
 ## Validation Habit
 

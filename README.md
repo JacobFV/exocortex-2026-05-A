@@ -33,6 +33,7 @@ Every observation and action keeps its source modality explicit so the agent can
 - `docs/architecture.md` - architecture articulation and naming rationale
 - `docs/continuity-kernel.md` - EventGraph continuity substrate specification, schema, rejected designs, and invariants
 - `docs/objectives.md` - durable objective ledger for product, hardware, model, and runtime scope
+- `docs/configuration.md` - local secret/config layout and environment variable reference
 - `docs/remaining-work.md` - durable implementation backlog and acceptance bar
 - `docs/handoff.md` - compact project memory for continuing work from another machine
 - `firmware/esp32-head-bridge` - ESP32 firmware for serial JSON frames, analog mux scanning, ADC sampling, and actuator control
@@ -46,6 +47,8 @@ npm run dev:electron
 npm run dev:expo
 ```
 
+Local-only secrets and machine paths should live in `config/local/.env`, not in a root `.env` and not in Git. Start from `config/examples/env.example`; see `docs/configuration.md`.
+
 The reference repository is expected to live at `refs/command-agi-gamma`. It is ignored by Git and should not be committed.
 
 The session package includes in-memory, JSONL file-backed, and SQLite-backed stores for durable event/artifact logs plus an event bus for host subscriptions.
@@ -53,3 +56,9 @@ The session package includes in-memory, JSONL file-backed, and SQLite-backed sto
 `@exocortex/media` can register local capture providers from host commands via `EXOCORTEX_IMAGE_CAPTURE_COMMAND`, `EXOCORTEX_AUDIO_CAPTURE_COMMAND`, and `EXOCORTEX_VIDEO_CAPTURE_COMMAND`. Pass JSON argument arrays in the matching `_ARGS` variables and use `{output}`, `{durationMs}`, `{durationSeconds}`, or `{deviceId}` placeholders for command templates.
 
 `exocortex-hardware` also owns operator calibration commands: generate a profile template, validate a profile against the head bridge config, derive linear transforms from measured point pairs, and apply profiles to raw samples.
+
+## Current Status
+
+The implemented foundation includes EventGraph-backed continuity, graph context assembly for model turns, evaluation/self-modification objects, Electron and Expo host shells, persisted Electron sessions/artifact blobs, serial transport health, model health checks, media provider wiring, calibration acceptance, safety denial audit state, and filtered continuity exports.
+
+Remaining work is tracked in `docs/remaining-work.md`. The most important next steps are rotating the local OpenAI key, adding a real Electron renderer bundle with browser-level tests, building continuous STT/TTS modality bridges, validating one physical ESP bridge end to end, and adding pre-execution approval for hazardous actuator commands.
