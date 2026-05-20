@@ -7,7 +7,7 @@ import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/har
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ActuatorSafetyGate } from "@exocortex/safety";
-import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter } from "@exocortex/session";
+import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter, SQLiteAgentSessionStore } from "@exocortex/session";
 import { ElectronBrowserController } from "./electron-browser-controller.js";
 
 const modalityRegistry = new ModalityRegistry();
@@ -20,6 +20,7 @@ const eventGraphKernel = new EventGraphKernel({
   relationBehaviors: createDefaultContinuityRelationBehaviors()
 });
 const capabilityRegistry = new EventGraphCapabilityRegistry(eventGraph);
+const agentSessionStore = new SQLiteAgentSessionStore(resolveAgentSessionDbPath());
 const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 const toolRouter = new AgentToolRouter(
   createBrowserAgentTools({
@@ -28,7 +29,7 @@ const toolRouter = new AgentToolRouter(
     defaultSessionId: () => browserSessionManager.list()[0]?.id
   })
 );
-const sessionManager = new AgentSessionManager({ runtime: new ModelDrivenAgentRuntime({ tools: toolRouter, capabilities: capabilityRegistry }), eventGraphKernel });
+const sessionManager = new AgentSessionManager({ store: agentSessionStore, runtime: new ModelDrivenAgentRuntime({ tools: toolRouter, capabilities: capabilityRegistry }), eventGraphKernel });
 const observationRouter = new ModalityObservationRouter(sessionManager);
 const actionRouter = new ModalityActionRouter(sessionManager);
 
@@ -208,6 +209,7 @@ app.on("before-quit", () => {
   void observationRouter.stopAll();
   eventGraphKernel.close();
   eventGraphStore.close();
+  agentSessionStore.close();
 });
 
 function registryBinding(sessionId: Parameters<AgentSessionManager["listBindings"]>[0], modalityInstanceId: Parameters<ModalityRegistry["bindToSession"]>[0]["modalityInstanceId"]) {
@@ -259,6 +261,13 @@ function publishHostCapabilities(): void {
 function resolveEventGraphDbPath(): string {
   const configured = process.env.EXOCORTEX_EVENT_GRAPH_DB;
   const dbPath = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "continuity-events.db");
+  mkdirSync(dirname(dbPath), { recursive: true });
+  return dbPath;
+}
+
+function resolveAgentSessionDbPath(): string {
+  const configured = process.env.EXOCORTEX_AGENT_SESSION_DB;
+  const dbPath = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "agent-sessions.db");
   mkdirSync(dirname(dbPath), { recursive: true });
   return dbPath;
 }

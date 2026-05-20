@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { AgentSessionArtifact, AgentSessionEvent, AgentSessionId } from "@exocortex/protocol";
 import Database from "better-sqlite3";
@@ -6,6 +6,7 @@ import type { Database as SqliteDatabase, Statement } from "better-sqlite3";
 
 export interface AgentSessionStore {
   appendEvent(event: AgentSessionEvent): void;
+  listSessionIds(): AgentSessionId[];
   listEvents(sessionId: AgentSessionId): AgentSessionEvent[];
   putArtifact(artifact: AgentSessionArtifact): void;
   listArtifacts(sessionId: AgentSessionId): AgentSessionArtifact[];
@@ -19,6 +20,10 @@ export class InMemoryAgentSessionStore implements AgentSessionStore {
     const events = this.events.get(event.sessionId) ?? [];
     events.push(event);
     this.events.set(event.sessionId, events);
+  }
+
+  listSessionIds(): AgentSessionId[] {
+    return [...this.events.keys()];
   }
 
   listEvents(sessionId: AgentSessionId): AgentSessionEvent[] {
@@ -43,6 +48,13 @@ export class JsonFileAgentSessionStore implements AgentSessionStore {
 
   appendEvent(event: AgentSessionEvent): void {
     this.appendJsonLine(this.eventsPath(event.sessionId), event);
+  }
+
+  listSessionIds(): AgentSessionId[] {
+    return readdirSync(this.rootDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name as AgentSessionId)
+      .filter((sessionId) => this.listEvents(sessionId).length > 0);
   }
 
   listEvents(sessionId: AgentSessionId): AgentSessionEvent[] {
@@ -102,6 +114,7 @@ interface SerializedAgentSessionArtifactRow {
 export class SQLiteAgentSessionStore implements AgentSessionStore {
   private readonly db: SqliteDatabase;
   private readonly appendEventStatement: Statement;
+  private readonly listSessionIdsStatement: Statement;
   private readonly listEventsStatement: Statement;
   private readonly putArtifactStatement: Statement;
   private readonly listArtifactsStatement: Statement;
@@ -125,6 +138,12 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
       FROM agent_session_events
       WHERE session_id = ?
       ORDER BY sequence ASC, row_id ASC
+    `);
+    this.listSessionIdsStatement = this.db.prepare(`
+      SELECT session_id
+      FROM agent_session_events
+      GROUP BY session_id
+      ORDER BY MIN(row_id) ASC
     `);
     this.putArtifactStatement = this.db.prepare(`
       INSERT INTO agent_session_artifacts (id, session_id, kind, title, created_at, payload_json)
@@ -151,6 +170,10 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
 
   listEvents(sessionId: AgentSessionId): AgentSessionEvent[] {
     return this.listRows<AgentSessionEvent>(this.listEventsStatement.all(sessionId) as SerializedAgentSessionEventRow[], "event");
+  }
+
+  listSessionIds(): AgentSessionId[] {
+    return (this.listSessionIdsStatement.all() as Array<{ session_id: string }>).map((row) => row.session_id as AgentSessionId);
   }
 
   putArtifact(artifact: AgentSessionArtifact): void {

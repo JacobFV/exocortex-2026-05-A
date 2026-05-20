@@ -48,6 +48,7 @@ export class AgentSessionManager {
     this.store = options.store ?? new InMemoryAgentSessionStore();
     this.runtime = options.runtime ?? new ModelDrivenAgentRuntime();
     this.eventGraphKernel = options.eventGraphKernel;
+    this.restorePersistedSessions();
   }
 
   create(input: CreateAgentSessionInput): AgentSession {
@@ -71,7 +72,7 @@ export class AgentSessionManager {
     this.bindings.set(session.id, modalityBindings);
     this.emit(session.id, { type: "session.created", goal: session.goal, runtime: session.runtime });
     for (const binding of modalityBindings) {
-      this.emit(session.id, { type: "session.modality_bound", bindingId: binding.id, key: binding.key, modalityId: binding.id });
+      this.emit(session.id, { type: "session.modality_bound", bindingId: binding.id, key: binding.key, modalityId: binding.id, metadata: { binding } });
     }
     return this.copySession(session);
   }
@@ -142,7 +143,7 @@ export class AgentSessionManager {
       modalityBindingIds: next.map((candidate) => candidate.id),
       modalityBindings: next
     });
-    this.emit(sessionId, { type: "session.modality_bound", bindingId: binding.id, key: binding.key, modalityId: binding.id });
+    this.emit(sessionId, { type: "session.modality_bound", bindingId: binding.id, key: binding.key, modalityId: binding.id, metadata: { binding } });
   }
 
   observe(
@@ -275,4 +276,69 @@ export class AgentSessionManager {
       capabilities: [...binding.capabilities]
     }));
   }
+
+  private restorePersistedSessions(): void {
+    for (const sessionId of this.store.listSessionIds()) {
+      const events = this.store.listEvents(sessionId);
+      const created = events.find((event): event is Extract<AgentSessionEvent, { type: "session.created" }> => event.type === "session.created");
+      if (!created) continue;
+
+      const bindings = events
+        .filter((event): event is Extract<AgentSessionEvent, { type: "session.modality_bound" }> => event.type === "session.modality_bound")
+        .map((event) => persistedBindingFromEvent(event))
+        .filter((binding): binding is AgentSessionModalityBinding => Boolean(binding));
+      const lastEvent = events.at(-1) ?? created;
+      const lastStateChange = [...events].reverse().find((event): event is Extract<AgentSessionEvent, { type: "session.state_changed" }> => event.type === "session.state_changed");
+      const error = [...events].reverse().find((event): event is Extract<AgentSessionEvent, { type: "session.error" }> => event.type === "session.error");
+      const finished = [...events].reverse().find((event): event is Extract<AgentSessionEvent, { type: "session.finished" }> => event.type === "session.finished");
+      const started = events.find((event) => event.type === "session.state_changed" && (event.nextState === "starting" || event.nextState === "running"));
+      const restoredState = persistedRuntimeState(lastStateChange?.nextState ?? "idle");
+      const session: AgentSession = {
+        id: sessionId,
+        continuityRunId: "main",
+        goal: created.goal,
+        state: restoredState,
+        runtime: created.runtime ?? { provider: "local", model: "local-rules", driver: this.runtime.runtimeId },
+        modalityBindingIds: bindings.map((binding) => binding.id),
+        modalityBindings: bindings,
+        createdAt: created.createdAt,
+        updatedAt: lastEvent.createdAt,
+        startedAt: started?.createdAt,
+        finishedAt: finished || error || restoredState === "stopped" ? lastEvent.createdAt : undefined,
+        error: error ? { code: error.code, message: error.message, recoverable: error.recoverable } : undefined,
+        metadata: { restoredFromEvents: true }
+      };
+      this.sessions.set(sessionId, session);
+      this.bindings.set(sessionId, bindings);
+    }
+  }
+}
+
+function persistedBindingFromEvent(event: Extract<AgentSessionEvent, { type: "session.modality_bound" }>): AgentSessionModalityBinding | undefined {
+  const binding = event.metadata?.binding;
+  if (isPersistedBinding(binding)) return binding;
+  return undefined;
+}
+
+function isPersistedBinding(value: unknown): value is AgentSessionModalityBinding {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<AgentSessionModalityBinding>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.sessionId === "string" &&
+    typeof candidate.modalityInstanceId === "string" &&
+    typeof candidate.key === "string" &&
+    typeof candidate.label === "string" &&
+    typeof candidate.direction === "string" &&
+    typeof candidate.kind === "string" &&
+    typeof candidate.policy === "string" &&
+    typeof candidate.source === "string" &&
+    Array.isArray(candidate.capabilities) &&
+    typeof candidate.boundAt === "string"
+  );
+}
+
+function persistedRuntimeState(state: AgentSessionState): AgentSessionState {
+  if (state === "finished" || state === "stopped" || state === "error" || state === "idle" || state === "paused") return state;
+  return "stopped";
 }
