@@ -25,6 +25,7 @@ The application is an agent runtime first. The frontend is another agent-managed
 - Branches represent alternate graph realities for retries, simulations, policy comparisons, and self-improvement experiments.
 - Continuity stores must support in-memory tests and SQLite-backed local persistence.
 - Continuity projection must deterministically convert session events into accepted graph patches.
+- Agent sessions must carry a branch id and project emitted events into that branch when a continuity kernel is attached.
 - `agent_sessions` as the unit of execution.
 - `agent_session_events` as append-only event logs.
 - `agent_session_artifacts` as durable outputs.

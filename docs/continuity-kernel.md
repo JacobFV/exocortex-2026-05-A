@@ -1059,6 +1059,8 @@ Acceptance:
 - observations are visible both as events and evidence nodes
 - tool results feed conversation history and graph state
 
+Status: partially implemented. `AgentSession` now carries `branchId`, `AgentSessionManager` accepts an optional `ContinuityKernel`, and every emitted session event is projected into that session's branch. Tests cover session creation, modality binding, and modality observations creating graph nodes. Agent version and capability node projection remains part of Stage 7.
+
 ### Stage 5: Behaviors
 
 Deliverables:

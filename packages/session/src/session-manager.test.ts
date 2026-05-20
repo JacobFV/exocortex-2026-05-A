@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { BrowserSessionManager, type BrowserController } from "@exocortex/browser-session";
+import { ContinuityKernel, InMemoryContinuityStore } from "@exocortex/continuity";
 import type { ChatModel, ChatRequest, ChatStreamEvent } from "@exocortex/models";
 import { ModalityRegistry } from "@exocortex/peripherals";
 import { ModelRouter } from "@exocortex/models";
@@ -22,6 +23,7 @@ const sessionB = manager.create({ goal: "Listen to external microphone" });
 
 assert.equal(manager.list().length, 2);
 assert.notEqual(sessionA.id, sessionB.id);
+assert.equal(sessionA.branchId, "main");
 
 await manager.start(sessionA.id);
 const runningSessionA = manager.get(sessionA.id);
@@ -165,3 +167,14 @@ const navigate = await browserTools.find((tool) => tool.definition.name === "bro
 });
 assert.deepEqual(browserActions[0], { type: "navigate", url: "https://example.com" });
 assert.equal((navigate.output as { frame?: { width?: number } }).frame?.width, 800);
+
+const continuityStore = new InMemoryContinuityStore();
+const continuityKernel = new ContinuityKernel({ store: continuityStore });
+const continuityManager = new AgentSessionManager({ continuityKernel });
+const continuitySession = continuityManager.create({ goal: "Project into graph", branchId: "main" });
+assert.ok(continuityStore.findNodeByStableKey("main", `session:${continuitySession.id}`));
+assert.ok(continuityStore.findNodeByStableKey("main", `goal:${continuitySession.id}:primary`));
+const continuityBinding = registry.bindToSession({ sessionId: continuitySession.id, modalityInstanceId: modalityInstances[0]!.id });
+continuityManager.bindModality(continuitySession.id, continuityBinding);
+continuityManager.observe(continuitySession.id, continuityBinding.id, "text.final", { text: "continuity evidence" });
+assert.ok(continuityStore.listNodes("main").some((node) => node.kind === "evidence"));

@@ -1,4 +1,8 @@
 import {
+  MAIN_BRANCH_ID,
+  type ContinuityKernel
+} from "@exocortex/continuity";
+import {
   createId,
   type AgentRuntimeRef,
   type AgentSession,
@@ -19,6 +23,7 @@ export interface CreateAgentSessionInput {
   goal: string;
   title?: string;
   runtime?: AgentRuntimeRef;
+  branchId?: string;
   modalityBindings?: AgentSessionModalityBinding[];
   metadata?: Record<string, unknown>;
 }
@@ -26,6 +31,7 @@ export interface CreateAgentSessionInput {
 export interface AgentSessionManagerOptions {
   store?: AgentSessionStore;
   runtime?: AgentRuntime;
+  continuityKernel?: ContinuityKernel;
 }
 
 export class AgentSessionManager {
@@ -36,10 +42,12 @@ export class AgentSessionManager {
   private readonly store: AgentSessionStore;
   private readonly bus = new AgentSessionEventBus();
   private readonly runtime: AgentRuntime;
+  private readonly continuityKernel?: ContinuityKernel;
 
   constructor(options: AgentSessionManagerOptions = {}) {
     this.store = options.store ?? new InMemoryAgentSessionStore();
     this.runtime = options.runtime ?? new ModelDrivenAgentRuntime();
+    this.continuityKernel = options.continuityKernel;
   }
 
   create(input: CreateAgentSessionInput): AgentSession {
@@ -47,6 +55,7 @@ export class AgentSessionManager {
     const modalityBindings = input.modalityBindings ?? [];
     const session: AgentSession = {
       id: createId<"AgentSessionId">("sess"),
+      branchId: input.branchId ?? MAIN_BRANCH_ID,
       goal: input.goal,
       title: input.title,
       state: "idle",
@@ -215,6 +224,7 @@ export class AgentSessionManager {
       createdAt: new Date().toISOString()
     } as AgentSessionEvent;
     this.store.appendEvent(fullEvent);
+    this.continuityKernel?.appendEvent(fullEvent, this.requireSession(sessionId).branchId);
     this.bus.publish(fullEvent);
     return fullEvent;
   }

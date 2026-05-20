@@ -28,6 +28,8 @@ The continuity kernel owns the event append path, patch proposal and acceptance,
 
 The detailed schema, rejected designs, package refactors, projection rules, behavior rules, branching model, and implementation plan are specified in [continuity-kernel.md](./continuity-kernel.md).
 
+Current session integration is opt-in: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`.
+
 ### `agent_sessions`
 
 An agent session is the unit of agent execution. It has a goal, lifecycle state, timestamps, model/runtime metadata, and a set of bound modalities.
