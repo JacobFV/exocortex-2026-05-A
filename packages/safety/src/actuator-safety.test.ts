@@ -20,3 +20,24 @@ assert.throws(
   /maxPulseUs/
 );
 assert.ok(gate.listPolicies().some((policy) => policy.channel === "ultrasound_trigger" && policy.requiresArm));
+
+const graphBackedGate = ActuatorSafetyGate.fromHeadBridgeConfig(config, {
+  listActiveGrants: (channel, now) =>
+    channel === "laser_enable" && now < new Date("2026-05-19T00:01:00.000Z")
+      ? [
+          {
+            channel,
+            reason: "accepted continuity grant",
+            armedAt: "2026-05-19T00:00:10.000Z",
+            expiresAt: "2026-05-19T00:01:00.000Z"
+          }
+        ]
+      : []
+});
+assert.doesNotThrow(() =>
+  graphBackedGate.validate("laser_enable", validateActuatorCommand(config, "laser_enable", { enabled: true, duty: 1 }), new Date("2026-05-19T00:00:20.000Z"))
+);
+assert.throws(
+  () => graphBackedGate.validate("laser_enable", validateActuatorCommand(config, "laser_enable", { enabled: true, duty: 1 }), new Date("2026-05-19T00:02:00.000Z")),
+  /not armed/
+);

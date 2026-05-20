@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { acceptSafetyGrant, ContinuityKernel, MAIN_BRANCH_ID, SQLiteContinuityStore } from "@exocortex/continuity";
+import { acceptSafetyGrant, ContinuityKernel, listActiveSafetyGrants, MAIN_BRANCH_ID, SQLiteContinuityStore } from "@exocortex/continuity";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
@@ -32,7 +32,15 @@ observationRouter.attachBridge(appTextBridge);
 
 const headBridgeModalities = modalityRegistry.createHeadBridgeGraph(defaultHeadBridgeConfig());
 const headBridgeConfig = defaultHeadBridgeConfig();
-const actuatorSafetyGate = ActuatorSafetyGate.fromHeadBridgeConfig(headBridgeConfig);
+const actuatorSafetyGate = ActuatorSafetyGate.fromHeadBridgeConfig(headBridgeConfig, {
+  listActiveGrants: (channel, now) =>
+    listActiveSafetyGrants(continuityStore, MAIN_BRANCH_ID, channel, now).map((node) => ({
+      channel,
+      reason: typeof node.metadata?.reason === "string" ? node.metadata.reason : "continuity safety grant",
+      armedAt: node.createdAt,
+      expiresAt: typeof node.metadata?.expiresAt === "string" ? node.metadata.expiresAt : node.createdAt
+    }))
+});
 const headBridgeSerialPath = process.env.EXOCORTEX_HEAD_BRIDGE_SERIAL;
 let headBridgeSource: HeadBridgeSerialSource | undefined;
 if (headBridgeSerialPath) {

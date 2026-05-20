@@ -16,17 +16,21 @@ export interface ActuatorArmGrant {
   expiresAt: string;
 }
 
+export interface ActuatorSafetyGrantReader {
+  listActiveGrants(channel: string, now: Date): ActuatorArmGrant[];
+}
+
 export class ActuatorSafetyGate {
   private readonly policies = new Map<string, ActuatorSafetyPolicy>();
   private readonly grants = new Map<string, ActuatorArmGrant>();
   private readonly lastCommandAt = new Map<string, number>();
 
-  constructor(policies: ActuatorSafetyPolicy[]) {
+  constructor(policies: ActuatorSafetyPolicy[], private readonly grantReader?: ActuatorSafetyGrantReader) {
     for (const policy of policies) this.policies.set(policy.channel, policy);
   }
 
-  static fromHeadBridgeConfig(config: HeadBridgeConfig): ActuatorSafetyGate {
-    return new ActuatorSafetyGate(config.actuators.map(defaultPolicyForActuator));
+  static fromHeadBridgeConfig(config: HeadBridgeConfig, grantReader?: ActuatorSafetyGrantReader): ActuatorSafetyGate {
+    return new ActuatorSafetyGate(config.actuators.map(defaultPolicyForActuator), grantReader);
   }
 
   arm(channel: string, reason: string, now = new Date()): ActuatorArmGrant {
@@ -49,7 +53,7 @@ export class ActuatorSafetyGate {
       throw new Error(`Safety gate rejected ${channel}: pulseUs ${command.pulseUs} exceeds safety maxPulseUs ${policy.maxPulseUs}`);
     }
     if (policy.requiresArm && command.enabled && command.duty > 0) {
-      const grant = this.grants.get(channel);
+      const grant = this.activeGrant(channel, now);
       if (!grant || Date.parse(grant.expiresAt) < now.getTime()) throw new Error(`Safety gate rejected ${channel}: actuator is not armed`);
     }
     if (policy.minIntervalMs) {
@@ -67,13 +71,28 @@ export class ActuatorSafetyGate {
   }
 
   listGrants(now = new Date()): ActuatorArmGrant[] {
-    return [...this.grants.values()].filter((grant) => Date.parse(grant.expiresAt) >= now.getTime()).map((grant) => ({ ...grant }));
+    const grants = new Map<string, ActuatorArmGrant>();
+    for (const grant of this.grants.values()) {
+      if (Date.parse(grant.expiresAt) >= now.getTime()) grants.set(`${grant.channel}:${grant.armedAt}`, { ...grant });
+    }
+    for (const policy of this.policies.values()) {
+      for (const grant of this.grantReader?.listActiveGrants(policy.channel, now) ?? []) {
+        if (Date.parse(grant.expiresAt) >= now.getTime()) grants.set(`${grant.channel}:${grant.armedAt}`, { ...grant });
+      }
+    }
+    return [...grants.values()];
   }
 
   private requirePolicy(channel: string): ActuatorSafetyPolicy {
     const policy = this.policies.get(channel);
     if (!policy) throw new Error(`No actuator safety policy for ${channel}`);
     return policy;
+  }
+
+  private activeGrant(channel: string, now: Date): ActuatorArmGrant | undefined {
+    const local = this.grants.get(channel);
+    if (local && Date.parse(local.expiresAt) >= now.getTime()) return local;
+    return this.grantReader?.listActiveGrants(channel, now).find((grant) => Date.parse(grant.expiresAt) >= now.getTime());
   }
 }
 

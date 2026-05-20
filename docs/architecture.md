@@ -28,7 +28,7 @@ The continuity kernel owns the event append path, patch proposal and acceptance,
 
 The detailed schema, rejected designs, package refactors, projection rules, behavior rules, branching model, and implementation plan are specified in [continuity-kernel.md](./continuity-kernel.md).
 
-Current session integration is enabled in Electron and opt-in for other hosts: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`. Electron creates a SQLite-backed continuity store at startup, passes its kernel into the session manager, exposes graph node/edge/patch reads over IPC, and records actuator arming as safety-grant graph state.
+Current session integration is enabled in Electron and opt-in for other hosts: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`. Electron creates a SQLite-backed continuity store at startup, passes its kernel into the session manager, exposes graph node/edge/patch reads over IPC, records actuator arming as safety-grant graph state, and lets the actuator safety gate validate against active graph grants.
 
 ### `agent_sessions`
 
@@ -119,7 +119,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `packages/transports` owns serial framing and Unix serial device transport.
 - `packages/hardware` owns typed head bridge configuration for ESPs, ADC channels, analog muxes, and actuator outputs.
 - `packages/calibration` owns calibration profiles, raw-to-calibrated sample conversion, actuator safety overlays, projection/pointer calibration types, and calibration artifacts.
-- `packages/safety` owns actuator arming, output power limits, pulse limits, and cooldown gates before host commands are written to hardware transports.
+- `packages/safety` owns actuator arming, output power limits, pulse limits, cooldown gates before host commands are written to hardware transports, and a grant-reader boundary for accepted graph grants.
 - `packages/peripherals` is currently the modality/device registry and bridge layer. The package name may later become `packages/modalities` or `packages/hardware`, but the code now models modalities as the first-class primitive.
 - `packages/session` owns concurrent long-running agent sessions, lifecycle transitions, modality binding, observation/action event emission, artifact recording, event subscriptions, bridge routing, and the runtime callback interface.
 - `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
