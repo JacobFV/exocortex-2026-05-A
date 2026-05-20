@@ -27,6 +27,7 @@ Every observation and action keeps its source modality explicit so the agent can
 - `packages/peripherals` - device/modality registry and hardware/host bridge abstractions
 - `packages/browser-session` - browser session control abstractions
 - `packages/computer-session` - projected computer session control abstractions
+- `packages/continuity` - continuity kernel foundation: branches, patches, graph stores, projection, and behavior hooks
 - `apps/hardware-cli` - serial hardware inspection, ping/listen, and validated actuation
 - `docs/architecture.md` - architecture articulation and naming rationale
 - `docs/continuity-kernel.md` - continuity substrate specification, schema, refactor plan, and acceptance criteria

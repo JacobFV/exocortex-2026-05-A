@@ -1006,6 +1006,8 @@ Acceptance:
 - accepted patch ops materialize graph state
 - rejected patch ops do not materialize graph state
 
+Status: implemented in `@exocortex/continuity`. The package includes continuity types, deterministic ids, `InMemoryContinuityStore`, `SQLiteContinuityStore`, patch proposal/accept/reject/application helpers, main branch initialization, core event projection, `ContinuityKernel`, branch creation, graph-change subscriptions, and tests covering replay idempotency, branch isolation, accepted/rejected patches, and SQLite reopen persistence.
+
 ### Stage 2: Event Projection
 
 Deliverables:
@@ -1223,4 +1225,3 @@ Behaviors tell us what should react.
 Capabilities tell us what can act.
 Policies tell us what may act.
 ```
-

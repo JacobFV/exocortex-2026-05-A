@@ -23,6 +23,8 @@ The application is an agent runtime first. The frontend is another agent-managed
 - Events record immutable history; accepted patches record state changes; the continuity graph represents branch-scoped operational reality.
 - Behaviors react to accepted graph changes and propose patches or commands.
 - Branches represent alternate graph realities for retries, simulations, policy comparisons, and self-improvement experiments.
+- Continuity stores must support in-memory tests and SQLite-backed local persistence.
+- Continuity projection must deterministically convert session events into accepted graph patches.
 - `agent_sessions` as the unit of execution.
 - `agent_session_events` as append-only event logs.
 - `agent_session_artifacts` as durable outputs.
