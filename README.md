@@ -27,10 +27,10 @@ Every observation and action keeps its source modality explicit so the agent can
 - `packages/modalities` - device/modality registry and hardware/host bridge abstractions
 - `packages/browser-session` - browser session control abstractions
 - `packages/computer-session` - projected computer session control abstractions
-- `packages/continuity` - continuity kernel foundation: branches, patches, graph stores, projection, and behavior hooks
+- `packages/continuity` - event-sourced continuity graph, SQLite/in-memory event stores, session projection, capabilities, safety/calibration operational state, frames, patches, and reactive behavior hooks
 - `apps/hardware-cli` - serial hardware inspection, ping/listen, and validated actuation
 - `docs/architecture.md` - architecture articulation and naming rationale
-- `docs/continuity-kernel.md` - continuity substrate specification, schema, refactor plan, and acceptance criteria
+- `docs/continuity-kernel.md` - EventGraph continuity substrate specification, schema, rejected designs, and invariants
 - `docs/objectives.md` - durable objective ledger for product, hardware, model, and runtime scope
 - `firmware/esp32-head-bridge` - ESP32 firmware for serial JSON frames, analog mux scanning, ADC sampling, and actuator control
 
