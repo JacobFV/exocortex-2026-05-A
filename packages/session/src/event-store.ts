@@ -103,7 +103,7 @@ export interface SQLiteAgentSessionStoreOptions {
   readonly wal?: boolean;
 }
 
-export const SQLITE_AGENT_SESSION_SCHEMA_VERSION = 1;
+export const SQLITE_AGENT_SESSION_SCHEMA_VERSION = 2;
 
 interface SerializedAgentSessionEventRow {
   readonly payload_json: string;
@@ -131,7 +131,7 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
     if (options.wal ?? dbPath !== ":memory:") this.db.pragma("journal_mode = WAL");
 
     this.initializeSchema();
-    this.recordMigration(SQLITE_AGENT_SESSION_SCHEMA_VERSION, "initial agent session event/artifact schema");
+    this.runMigrations();
     this.appendEventStatement = this.db.prepare(`
       INSERT INTO agent_session_events (id, session_id, sequence, type, created_at, payload_json)
       VALUES (@id, @sessionId, @sequence, @type, @createdAt, @payloadJson)
@@ -244,8 +244,34 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
     `);
   }
 
-  private recordMigration(version: number, name: string): void {
-    this.db.prepare("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)").run(version, name);
+  private runMigrations(): void {
+    const migrations: Array<{ version: number; name: string; apply: () => void }> = [
+      {
+        version: 1,
+        name: "initial agent session event/artifact schema",
+        apply: () => {}
+      },
+      {
+        version: 2,
+        name: "agent session query indexes",
+        apply: () => {
+          this.db.exec(`
+            CREATE INDEX IF NOT EXISTS agent_session_events_type_created_idx
+              ON agent_session_events (type, created_at);
+            CREATE INDEX IF NOT EXISTS agent_session_artifacts_kind_created_idx
+              ON agent_session_artifacts (kind, created_at);
+          `);
+        }
+      }
+    ];
+    for (const migration of migrations) {
+      const applied = this.db.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get(migration.version);
+      if (applied) continue;
+      this.db.transaction(() => {
+        migration.apply();
+        this.db.prepare("INSERT INTO schema_migrations (version, name) VALUES (?, ?)").run(migration.version, migration.name);
+      })();
+    }
   }
 
   private listRows<T>(rows: Array<{ payload_json: string }>, rowType: string): T[] {

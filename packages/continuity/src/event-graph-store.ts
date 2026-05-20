@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import type { Database as SqliteDatabase, Statement } from "better-sqlite3";
 import type { ContinuityEvent, EventSourcedGraphStore } from "./event-graph-types.js";
 
-export const SQLITE_EVENT_GRAPH_SCHEMA_VERSION = 1;
+export const SQLITE_EVENT_GRAPH_SCHEMA_VERSION = 2;
 
 export class InMemoryEventSourcedGraphStore implements EventSourcedGraphStore {
   private readonly events = new Map<string, ContinuityEvent[]>();
@@ -61,7 +61,7 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
       );
       CREATE INDEX IF NOT EXISTS idx_continuity_events_v2_run_type ON continuity_events_v2(run_id, type);
     `);
-    this.db.prepare("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)").run(SQLITE_EVENT_GRAPH_SCHEMA_VERSION, "initial continuity event graph schema");
+    this.runMigrations();
     this.append = this.db.prepare(`
       INSERT INTO continuity_events_v2 (run_id, sequence, id, type, created_at, payload_json)
       VALUES (@runId, @sequence, @id, @type, @createdAt, @payloadJson)
@@ -93,5 +93,35 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
 
   transaction<T>(fn: () => T): T {
     return this.db.transaction(fn)();
+  }
+
+  private runMigrations(): void {
+    const migrations: Array<{ version: number; name: string; apply: () => void }> = [
+      {
+        version: 1,
+        name: "initial continuity event graph schema",
+        apply: () => {}
+      },
+      {
+        version: 2,
+        name: "continuity event query indexes",
+        apply: () => {
+          this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_continuity_events_v2_run_created
+              ON continuity_events_v2(run_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_continuity_events_v2_type_created
+              ON continuity_events_v2(type, created_at);
+          `);
+        }
+      }
+    ];
+    for (const migration of migrations) {
+      const applied = this.db.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get(migration.version);
+      if (applied) continue;
+      this.db.transaction(() => {
+        migration.apply();
+        this.db.prepare("INSERT INTO schema_migrations (version, name) VALUES (?, ?)").run(migration.version, migration.name);
+      })();
+    }
   }
 }

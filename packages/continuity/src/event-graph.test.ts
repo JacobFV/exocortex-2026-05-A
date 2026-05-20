@@ -23,7 +23,7 @@ await runStoreContract(new InMemoryEventSourcedGraphStore());
 const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-event-graph-"));
 try {
   const sqlite = new SQLiteEventSourcedGraphStore(join(tempRoot, "graph.db"));
-  assert.equal(sqlite.listMigrations()[0]?.version, 1);
+  assert.deepEqual(sqlite.listMigrations().map((migration) => migration.version), [1, 2]);
   await runStoreContract(sqlite);
   sqlite.close();
 } finally {

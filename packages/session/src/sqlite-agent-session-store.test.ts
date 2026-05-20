@@ -13,7 +13,7 @@ const dbPath = join(tempRoot, "sessions.db");
 
 try {
   const store = new SQLiteAgentSessionStore(dbPath);
-  assert.equal(store.listMigrations()[0]?.version, 1);
+  assert.deepEqual(store.listMigrations().map((migration) => migration.version), [1, 2]);
   const manager = new AgentSessionManager({ store });
   const session = manager.create({ goal: "Persist sqlite session" });
   const registry = new ModalityRegistry();
