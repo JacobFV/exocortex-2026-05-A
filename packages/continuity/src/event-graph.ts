@@ -60,10 +60,14 @@ export class EventSourcedGraph {
       causedBy: input.causedBy,
       createdAt: (input.createdAt ?? this.clock()).toISOString()
     };
-    this.options.store?.transaction(() => {
-      this.options.store?.appendEvent(event);
+    if (this.options.store) {
+      this.options.store.transaction(() => {
+        this.options.store?.appendEvent(event);
+        this.applyEvent(event);
+      });
+    } else {
       this.applyEvent(event);
-    });
+    }
     for (const listener of this.listeners) listener(event);
     return event;
   }

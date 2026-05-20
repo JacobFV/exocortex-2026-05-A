@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { AgentSessionEvent } from "@exocortex/protocol";
 import { EventSourcedGraph } from "./event-graph.js";
+import { EventGraphKernel } from "./event-graph-kernel.js";
 import { InMemoryEventSourcedGraphStore, SQLiteEventSourcedGraphStore } from "./event-graph-store.js";
 import { ReactiveGraphRuntime } from "./reactive-runtime.js";
 
+runStorelessGraphContract();
+runKernelIdempotencyContract();
 await runStoreContract(new InMemoryEventSourcedGraphStore());
 
 const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-event-graph-"));
@@ -82,6 +86,33 @@ async function runStoreContract(store: InMemoryEventSourcedGraphStore | SQLiteEv
   await runtime.runUntilIdle();
   assert.ok(graph.snapshot().events.some((event) => event.type === "behavior.failed" && event.payload.behaviorName === "failure-is-event"));
   runtime.close();
+}
+
+function runStorelessGraphContract(): void {
+  const graph = new EventSourcedGraph({ runId: "run_storeless", clock: fixedClock("2026-05-20T00:00:00.000Z") });
+  const object = graph.addObject("claim", { text: "events apply without a backing store" }, { actor: "test" });
+  assert.equal(graph.getObject(object.id)?.data.text, "events apply without a backing store");
+  assert.equal(graph.snapshot().events.length, 1);
+}
+
+function runKernelIdempotencyContract(): void {
+  const graph = new EventSourcedGraph({ runId: "run_kernel_idempotency", store: new InMemoryEventSourcedGraphStore(), clock: fixedClock("2026-05-20T00:00:00.000Z") });
+  const kernel = new EventGraphKernel({ graph });
+  const event: AgentSessionEvent = {
+    id: "evt_source_1" as AgentSessionEvent["id"],
+    sessionId: "sess_source_1" as AgentSessionEvent["sessionId"],
+    sequence: 1,
+    createdAt: "2026-05-20T00:00:00.000Z",
+    type: "session.created",
+    goal: "Project once",
+    runtime: { provider: "local", model: "local-rules" }
+  };
+  kernel.appendSessionEvent(event);
+  const afterFirst = graph.snapshot();
+  kernel.appendSessionEvent(event);
+  const afterSecond = graph.snapshot();
+  assert.deepEqual(jsonSnapshot(afterSecond), jsonSnapshot(afterFirst));
+  kernel.close();
 }
 
 function fixedClock(iso: string): () => Date {

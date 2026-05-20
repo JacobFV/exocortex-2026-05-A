@@ -22,7 +22,9 @@ export class EventGraphKernel {
   }
 
   appendSessionEvent(event: AgentSessionEvent): void {
+    if (this.graph.findObjects({ type: "source_event", where: { sourceEventId: event.id } })[0]) return;
     const raw = this.graph.emit("agent_session.event", { event }, { actor: "agent-session-manager", createdAt: new Date(event.createdAt) });
+    this.upsertObject(`source_event:${event.id}`, "source_event", { sourceEventId: event.id, sessionId: event.sessionId, eventType: event.type, sequence: event.sequence }, raw.id);
     this.projectSessionEvent(event, raw.id);
   }
 
@@ -130,11 +132,12 @@ export class EventGraphKernel {
 
   private upsertObject(stableKey: string, type: string, data: Record<string, unknown>, causedBy: string): GraphObject {
     const existing = this.graph.findObjects({ type, where: { stableKey } })[0];
+    const next = { ...data, stableKey };
     if (existing) {
-      this.graph.patchObject(existing.id, { ...data, stableKey }, { actor: "event-projector", causedBy });
+      if (stableHash(existing.data) !== stableHash(next)) this.graph.patchObject(existing.id, next, { actor: "event-projector", causedBy });
       return this.graph.getObject(existing.id)!;
     }
-    return this.graph.addObject(type, { ...data, stableKey }, { actor: "event-projector", causedBy });
+    return this.graph.addObject(type, next, { actor: "event-projector", causedBy });
   }
 
   private ensureRelation(sourceId: string, targetId: string, type: string, data: Record<string, unknown>, causedBy: string): GraphRelation {
