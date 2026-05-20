@@ -14,7 +14,7 @@ import { acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, listAc
 import type { ContinuityPatch, ContinuityPatchOp, ContinuityStore } from "./types.js";
 
 const sessionId = createId<"AgentSessionId">("sess");
-const created: AgentSessionEvent = baseEvent(sessionId, 1, { type: "session.created", goal: "Build continuity" });
+const created: AgentSessionEvent = baseEvent(sessionId, 1, { type: "session.created", goal: "Build continuity", runtime: { provider: "local", model: "local-rules", driver: "model-driven-agent-runtime" } });
 const observation: AgentSessionEvent = baseEvent(sessionId, 2, {
   type: "modality.observation",
   bindingId: createId<"AgentSessionModalityId">("bind"),
@@ -58,6 +58,7 @@ async function runStoreContract(store: ContinuityStore): Promise<void> {
   assert.equal(changes.length, 3);
   assert.ok(store.findNodeByStableKey("main", `session:${sessionId}`));
   assert.ok(store.findNodeByStableKey("main", `goal:${sessionId}:primary`));
+  assert.ok(store.listNodes("main").some((node) => node.kind === "agent_version" && node.metadata?.model === "local-rules"));
   assert.ok(store.listNodes("main").some((node) => node.kind === "evidence"));
   assert.ok(store.listNodes("main").some((node) => node.kind === "failure"));
   assert.equal(store.getProjectionOffset("main", "core-event-projector"), 3);

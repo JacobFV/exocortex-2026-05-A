@@ -10,7 +10,7 @@ import type {
   ComputerSessionId,
   ToolCallId
 } from "./id.js";
-import type { AgentSessionState } from "./session.js";
+import type { AgentRuntimeRef, AgentSessionState } from "./session.js";
 
 export interface EventBase {
   id: AgentSessionEventId;
@@ -22,7 +22,7 @@ export interface EventBase {
 }
 
 export type AgentSessionEvent =
-  | (EventBase & { type: "session.created"; goal: string })
+  | (EventBase & { type: "session.created"; goal: string; runtime?: AgentRuntimeRef })
   | (EventBase & { type: "session.modality_bound"; bindingId: AgentSessionModalityId; key: string })
   | (EventBase & { type: "session.state_changed"; previousState: AgentSessionState; nextState: AgentSessionState })
   | (EventBase & { type: "message.delta"; role: "assistant" | "user" | "system"; text: string; source?: string })

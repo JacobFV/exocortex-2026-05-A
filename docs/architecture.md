@@ -41,6 +41,7 @@ Multiple sessions can run simultaneously. A session manager starts, pauses, resu
 The event log is append-only. It includes:
 
 - Streaming assistant text deltas.
+- Session creation with runtime/model metadata for graph lineage.
 - Tool call start/delta/result/error events.
 - Modality observations from sensors and UI inputs.
 - Modality actions sent to outputs and actuators.

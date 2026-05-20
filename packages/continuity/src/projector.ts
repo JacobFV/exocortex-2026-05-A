@@ -70,6 +70,23 @@ export class CoreContinuityProjector implements ContinuityProjector {
         const session = node("session", `session:${event.sessionId}`, { sessionId: event.sessionId }, "Agent session", event.goal);
         const goal = node("goal", `goal:${event.sessionId}:primary`, { sessionId: event.sessionId }, "Session goal", event.goal);
         edge(session.id, goal.id, "uses");
+        if (event.runtime) {
+          const runtimeHash = stableHash(event.runtime);
+          const agentVersion = node(
+            "agent_version",
+            `agent_version:${event.sessionId}:${runtimeHash}`,
+            {
+              sessionId: event.sessionId,
+              provider: event.runtime.provider,
+              model: event.runtime.model,
+              driver: event.runtime.driver,
+              runtimeHash,
+              runtime: event.runtime
+            },
+            `Agent runtime ${event.runtime.model ?? event.runtime.provider}`
+          );
+          edge(session.id, agentVersion.id, "uses");
+        }
         break;
       }
       case "session.modality_bound": {

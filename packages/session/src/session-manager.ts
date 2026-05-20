@@ -69,7 +69,7 @@ export class AgentSessionManager {
 
     this.sessions.set(session.id, session);
     this.bindings.set(session.id, modalityBindings);
-    this.emit(session.id, { type: "session.created", goal: session.goal });
+    this.emit(session.id, { type: "session.created", goal: session.goal, runtime: session.runtime });
     for (const binding of modalityBindings) {
       this.emit(session.id, { type: "session.modality_bound", bindingId: binding.id, key: binding.key, modalityId: binding.id });
     }
