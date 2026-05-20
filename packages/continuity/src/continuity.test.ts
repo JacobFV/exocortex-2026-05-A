@@ -8,7 +8,7 @@ import { acceptPatch, ensureMainBranch, proposePatch, rejectPatch } from "./patc
 import { InMemoryContinuityStore } from "./in-memory-store.js";
 import { SQLiteContinuityStore } from "./sqlite-store.js";
 import { createCompletedDependencyBehavior, createContradictionReviewBehavior, createFailureReviewBehavior, createHazardousActionApprovalBehavior, createStaleEvidenceBehavior, createUnsupportedClaimBehavior } from "./behaviors.js";
-import { diffBranch, proposeBranchMerge } from "./branching.js";
+import { abandonBranch, acceptBranchMerge, archiveBranch, diffBranch, proposeBranchMerge } from "./branching.js";
 import { ContinuityCapabilityRegistry } from "./capabilities.js";
 import { acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, listActiveCalibrationProfiles, listActiveSafetyGrants, listActiveSafetyPolicies } from "./operational-state.js";
 import type { ContinuityPatch, ContinuityPatchOp, ContinuityStore } from "./types.js";
@@ -84,6 +84,12 @@ async function runStoreContract(store: ContinuityStore): Promise<void> {
   const merge = proposeBranchMerge(store, { branchId: "branch_retry", baseBranchId: "main", now: new Date("2026-05-19T00:00:07.500Z") });
   assert.equal(merge.diff.conflicts.length, 0);
   assert.equal(merge.ops.filter((op) => op.op === "create_node").length, 1);
+  acceptBranchMerge(store, merge, "test", new Date("2026-05-19T00:00:07.750Z"));
+  assert.equal(store.findNodeByStableKey("main", "task:manual")?.kind, "task");
+  assert.equal(store.getBranch("branch_retry")?.status, "merged");
+  kernel.createBranch({ id: "branch_scratch", parentBranchId: "main", createdFor: "scratch", now: new Date("2026-05-19T00:00:07.800Z") });
+  assert.equal(abandonBranch(store, "branch_scratch").status, "abandoned");
+  assert.equal(archiveBranch(store, "branch_scratch").status, "archived");
 
   const failureChange = {
     branchId: "main",
