@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { acceptSafetyGrant, acceptSafetyPolicy, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveSafetyGrants, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
+import { type GraphObject, acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveCalibrationProfiles, listActiveSafetyGrants, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
+import { type CalibrationProfile, validateCalibrationProfile } from "@exocortex/calibration";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import { ModelRouter } from "@exocortex/models";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
@@ -77,7 +78,8 @@ if (headBridgeSerialPath) {
     {
       path: headBridgeSerialPath,
       baudRate: Number(process.env.EXOCORTEX_HEAD_BRIDGE_BAUD ?? 115200)
-    }
+    },
+    { calibrationProfile: activeHeadBridgeCalibrationProfile() }
   );
   observationRouter.attachObservationSource(
     "head_bridge_serial_source",
@@ -173,6 +175,19 @@ ipcMain.handle("exocortex:list-actuator-safety", () => ({
   policies: actuatorSafetyGate.listPolicies(),
   grants: actuatorSafetyGate.listGrants()
 }));
+ipcMain.handle("exocortex:list-calibration-profiles", () => listActiveCalibrationProfiles(eventGraph));
+ipcMain.handle("exocortex:accept-calibration-profile", (_event, profile: CalibrationProfile, supersedesProfileId?: string) => {
+  validateCalibrationProfile(profile, headBridgeConfig);
+  const object = acceptCalibrationProfile(eventGraph, {
+    profileId: profile.id,
+    deviceKey: profile.deviceKey,
+    profile,
+    active: true,
+    supersedesProfileId
+  });
+  updateHeadBridgeCalibrationProfile();
+  return object;
+});
 ipcMain.handle("exocortex:create-browser-session", async (_event, sessionId?: AgentSessionId) => {
   const browser = await createBrowserSessionSurface();
   if (sessionId) sessionManager.recordBrowserCreated(sessionId, browser.id);
@@ -235,6 +250,22 @@ function registryBinding(sessionId: Parameters<AgentSessionManager["listBindings
 function normalizeRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Hardware action value must be an object");
   return value as Record<string, unknown>;
+}
+
+function updateHeadBridgeCalibrationProfile(): void {
+  headBridgeSource?.setCalibrationProfile(activeHeadBridgeCalibrationProfile());
+}
+
+function activeHeadBridgeCalibrationProfile(): CalibrationProfile | undefined {
+  const profileObject = newestGraphObject(listActiveCalibrationProfiles(eventGraph, headBridgeConfig.bridgeId));
+  if (!profileObject) return undefined;
+  const profile = profileObject.data.profile;
+  validateCalibrationProfile(profile as CalibrationProfile, headBridgeConfig);
+  return profile as CalibrationProfile;
+}
+
+function newestGraphObject(objects: GraphObject[]): GraphObject | undefined {
+  return [...objects].sort((a, b) => Date.parse(b.provenance.createdAt) - Date.parse(a.provenance.createdAt))[0];
 }
 
 function publishHostCapabilities(): void {

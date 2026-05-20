@@ -12,9 +12,11 @@ export class HeadBridgeSerialSource {
   private readonly transport: NodeSerialTransport;
   private readonly modalitiesByKey = new Map<string, ModalityInstance>();
   private readonly listeners = new Set<(observation: ModalityObservation) => void>();
+  private calibrationProfile?: CalibrationProfile;
 
-  constructor(modalities: ModalityInstance[], options: NodeSerialTransportOptions, private readonly sourceOptions: HeadBridgeSerialSourceOptions = {}) {
+  constructor(modalities: ModalityInstance[], options: NodeSerialTransportOptions, sourceOptions: HeadBridgeSerialSourceOptions = {}) {
     this.transport = new NodeSerialTransport(options);
+    this.calibrationProfile = sourceOptions.calibrationProfile;
     for (const modality of modalities) {
       this.modalitiesByKey.set(modality.key, modality);
     }
@@ -47,6 +49,10 @@ export class HeadBridgeSerialSource {
     });
   }
 
+  setCalibrationProfile(profile: CalibrationProfile | undefined): void {
+    this.calibrationProfile = profile;
+  }
+
   private handleFrame(frame: SerialFrame): void {
     const modality = this.modalitiesByKey.get(frame.channel);
     if (!modality) return;
@@ -54,7 +60,7 @@ export class HeadBridgeSerialSource {
       listener({
         modalityInstanceId: modality.id,
         observationType: frame.type,
-        value: normalizeHeadBridgeFrameValue(frame, this.sourceOptions.calibrationProfile),
+        value: normalizeHeadBridgeFrameValue(frame, this.calibrationProfile),
         observedAt: frame.timestamp ?? new Date().toISOString()
       });
     }

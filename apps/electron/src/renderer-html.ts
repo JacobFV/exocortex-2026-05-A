@@ -385,6 +385,7 @@ export function renderHtml(): string {
           <button type="button" data-tab="modalities">Modalities</button>
           <button type="button" data-tab="browser">Browser</button>
           <button type="button" data-tab="safety">Safety</button>
+          <button type="button" data-tab="calibration">Calibration</button>
           <button type="button" data-tab="graph">Graph</button>
           <button type="button" data-tab="artifacts">Artifacts</button>
         </nav>
@@ -394,6 +395,7 @@ export function renderHtml(): string {
           <section id="view-modalities" class="view hidden"></section>
           <section id="view-browser" class="view hidden"></section>
           <section id="view-safety" class="view hidden"></section>
+          <section id="view-calibration" class="view hidden"></section>
           <section id="view-graph" class="view hidden"></section>
           <section id="view-artifacts" class="view hidden"></section>
         </div>
@@ -410,6 +412,7 @@ export function renderHtml(): string {
         modalities: { devices: [], modalities: [], deviceTypes: [], modalityTypes: [] },
         continuity: { objects: [], relations: [], events: [] },
         safety: { policies: [], grants: [] },
+        calibrationProfiles: [],
         browsers: [],
         browserFrame: undefined,
         selectedTab: 'timeline',
@@ -468,13 +471,15 @@ export function renderHtml(): string {
             window.exocortex.listContinuityEvents(),
             window.exocortex.listActuatorSafety(),
             window.exocortex.listBrowserSessions(),
-            window.exocortex.listModels()
+            window.exocortex.listModels(),
+            window.exocortex.listCalibrationProfiles()
           ]);
           state.modalities = base[0] || state.modalities;
           state.continuity = { objects: base[1] || [], relations: base[2] || [], events: base[3] || [] };
           state.safety = base[4] || { policies: [], grants: [] };
           state.browsers = base[5] || [];
           state.models = base[6] || { models: [], health: [] };
+          state.calibrationProfiles = base[7] || [];
           if (selected) {
             const details = await Promise.all([
               window.exocortex.listEvents(selected.id),
@@ -519,6 +524,7 @@ export function renderHtml(): string {
         renderModalities();
         renderBrowser();
         renderSafety();
+        renderCalibration();
         renderGraph();
         renderArtifacts();
       }
@@ -725,6 +731,27 @@ export function renderHtml(): string {
           '</section>';
       }
 
+      function renderCalibration() {
+        const profiles = state.calibrationProfiles || [];
+        const rows = profiles.map(function (object) {
+          return '<tr><td>' + escapeHtml(object.data?.profileId || object.id) + '<br><span class="muted">' + escapeHtml(object.data?.deviceKey || '') + '</span></td><td>' + escapeHtml(object.data?.profileHash || '') + '</td><td>' + escapeHtml(time(object.provenance?.createdAt)) + '</td></tr>';
+        }).join('');
+        el('#view-calibration').innerHTML =
+          '<div class="two-col">' +
+            '<section class="panel">' +
+              '<div class="panel-header"><h2>Accepted Calibration Profiles</h2><span class="pill">' + profiles.length + '</span></div>' +
+              '<div class="panel-body"><table><thead><tr><th>Profile</th><th>Hash</th><th>Accepted</th></tr></thead><tbody>' + (rows || '<tr><td colspan="3">No active calibration profiles</td></tr>') + '</tbody></table></div>' +
+            '</section>' +
+            '<section class="panel">' +
+              '<div class="panel-header"><h2>Accept Profile</h2></div>' +
+              '<div class="panel-body stack">' +
+                '<label>Calibration Profile JSON<textarea id="calibration-profile-json">{\\n  "id": "head_serial_bridge_calibration",\\n  "name": "head_serial_bridge calibration",\\n  "deviceKey": "head_serial_bridge",\\n  "createdAt": "2026-05-20T00:00:00.000Z",\\n  "updatedAt": "2026-05-20T00:00:00.000Z",\\n  "calibrations": []\\n}</textarea></label>' +
+                '<button type="button" class="primary" data-action="accept-calibration">Accept Profile</button>' +
+              '</div>' +
+            '</section>' +
+          '</div>';
+      }
+
       function renderGraph() {
         const filter = state.graphFilter.trim().toLowerCase();
         const objects = state.continuity.objects.filter(function (object) {
@@ -845,6 +872,11 @@ export function renderHtml(): string {
             const actionType = el('#action-type').value.trim();
             const payload = JSON.parse(el('#action-payload').value);
             if (session && bindingId && actionType) await window.exocortex.sendModalityAction(session.id, bindingId, actionType, payload);
+            await refresh();
+          }
+          if (action === 'accept-calibration') {
+            const profile = JSON.parse(el('#calibration-profile-json').value);
+            await window.exocortex.acceptCalibrationProfile(profile);
             await refresh();
           }
           if (action === 'apply-graph-filter') {
