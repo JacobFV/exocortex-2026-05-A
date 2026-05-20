@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Button, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
-import { ModalityRegistry } from "@exocortex/peripherals";
+import { ModalityRegistry } from "@exocortex/modalities";
 import { AgentSessionManager, ModalityObservationRouter } from "@exocortex/session";
 import { createExpoNativeDeviceBridges } from "./native-device-bridge";
 

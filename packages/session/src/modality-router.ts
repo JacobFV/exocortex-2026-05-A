@@ -1,5 +1,5 @@
 import type { AgentSessionId, AgentSessionModalityBinding, ModalityInstanceId } from "@exocortex/protocol";
-import type { ModalityBridge, ModalityObservation } from "@exocortex/peripherals";
+import type { ModalityBridge, ModalityObservation } from "@exocortex/modalities";
 import type { AgentSessionManager } from "./session-manager.js";
 
 export class ModalityObservationRouter {

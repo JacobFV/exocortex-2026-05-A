@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { BrowserSessionManager, type BrowserController } from "@exocortex/browser-session";
 import { EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, InMemoryEventSourcedGraphStore } from "@exocortex/continuity";
 import type { ChatModel, ChatRequest, ChatStreamEvent } from "@exocortex/models";
-import { ModalityRegistry } from "@exocortex/peripherals";
+import { ModalityRegistry } from "@exocortex/modalities";
 import { ModelRouter } from "@exocortex/models";
 import { ModelDrivenAgentRuntime, type AgentRuntimeContext } from "./agent-runtime.js";
 import { createBrowserAgentTools } from "./browser-tools.js";
@@ -23,7 +23,7 @@ const sessionB = manager.create({ goal: "Listen to external microphone" });
 
 assert.equal(manager.list().length, 2);
 assert.notEqual(sessionA.id, sessionB.id);
-assert.equal(sessionA.branchId, "main");
+assert.equal(sessionA.continuityRunId, "main");
 
 await manager.start(sessionA.id);
 const runningSessionA = manager.get(sessionA.id);
@@ -216,7 +216,7 @@ assert.equal((navigate.output as { frame?: { width?: number } }).frame?.width, 8
 const continuityGraph = new EventSourcedGraph({ runId: "session_projection", store: new InMemoryEventSourcedGraphStore() });
 const eventGraphKernel = new EventGraphKernel({ graph: continuityGraph });
 const continuityManager = new AgentSessionManager({ eventGraphKernel });
-const continuitySession = continuityManager.create({ goal: "Project into graph", branchId: "main" });
+const continuitySession = continuityManager.create({ goal: "Project into graph", continuityRunId: "main" });
 assert.ok(continuityGraph.findObjects({ type: "agent_session", where: { sessionId: continuitySession.id } }).length);
 assert.ok(continuityGraph.findObjects({ type: "goal", where: { sessionId: continuitySession.id } }).length);
 const continuityBinding = registry.bindToSession({ sessionId: continuitySession.id, modalityInstanceId: modalityInstances[0]!.id });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { ModalityInstance } from "@exocortex/protocol";
-import { ModalityRegistry } from "@exocortex/peripherals";
+import { ModalityRegistry } from "@exocortex/modalities";
 import {
   createExpoCameraBridge,
   createExpoMicrophoneBridge,

@@ -10,7 +10,7 @@
     "dev": "expo start --port 8081"
   },
   "dependencies": {
-    "@exocortex/peripherals": "0.0.0",
+    "@exocortex/modalities": "0.0.0",
     "@exocortex/session": "0.0.0",
     "electron": "^42.2.0",
     "expo": "^55.0.25",

@@ -23,7 +23,7 @@ export interface CreateAgentSessionInput {
   goal: string;
   title?: string;
   runtime?: AgentRuntimeRef;
-  branchId?: string;
+  continuityRunId?: string;
   modalityBindings?: AgentSessionModalityBinding[];
   metadata?: Record<string, unknown>;
 }
@@ -55,7 +55,7 @@ export class AgentSessionManager {
     const modalityBindings = input.modalityBindings ?? [];
     const session: AgentSession = {
       id: createId<"AgentSessionId">("sess"),
-      branchId: input.branchId ?? MAIN_RUN_ID,
+      continuityRunId: input.continuityRunId ?? MAIN_RUN_ID,
       goal: input.goal,
       title: input.title,
       state: "idle",

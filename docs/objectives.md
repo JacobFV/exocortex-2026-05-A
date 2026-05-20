@@ -19,13 +19,13 @@ The application is an agent runtime first. The frontend is another agent-managed
 
 ## Agent Core
 
-- The long-term center of the architecture is a `ContinuityKernel`, not a chat loop or session manager.
-- Events are the immutable durable source of truth; objects, relations, patches, approvals, frames, branches, and graph views are replayable projections.
+- The long-term center of the architecture is the EventGraph continuity substrate, not a chat loop or session manager.
+- Events are the immutable durable source of truth; objects, relations, patches, approvals, frames, and graph views are replayable projections.
 - Behaviors and relation behaviors react to events and graph shape, then emit more events or propose/apply/reject patches.
-- Branches represent alternate graph realities for retries, simulations, policy comparisons, and self-improvement experiments.
+- Frames and run ids represent alternate graph realities for retries, simulations, policy comparisons, and self-improvement experiments.
 - Continuity stores must support in-memory tests and SQLite-backed local persistence.
 - Continuity projection must deterministically convert session and host events into graph events that replay to the same object/relation state.
-- Agent sessions must carry a branch id and project emitted events into that branch when a continuity kernel is attached.
+- Agent sessions must carry a continuity run id and project emitted events into an attached `EventGraphKernel`.
 - `agent_sessions` as the unit of execution.
 - `agent_session_events` as append-only event logs.
 - `agent_session_artifacts` as durable outputs.
@@ -179,7 +179,7 @@ The calibration runtime must provide:
 
 - versioned calibration profiles per physical device.
 - graph-accepted calibration profile state with explicit supersession lineage.
-- branch-scoped safety grants that can be checked before hazardous output.
+- event-graph safety grants that can be checked before hazardous output.
 - linear analog transforms with clamping.
 - ADC reference conversion.
 - EEG baseline and gain conversion.
@@ -201,4 +201,4 @@ Adopted architecture principles:
 - preserve multimodal provenance.
 - model browser/computer sessions as controllable projected environments.
 - support local and hosted agent execution under one protocol.
-- recenter long-running agents around a continuity substrate that unifies events, patches, graph state, branches, behaviors, capabilities, policies, modalities, devices, and artifacts.
+- recenter long-running agents around a continuity substrate that unifies events, patches, graph state, frames, behaviors, capabilities, policies, modalities, devices, and artifacts.

@@ -22,15 +22,15 @@ Exocortex keeps that shape, but generalizes "environment" into many typed modali
 
 ## Continuity Kernel Direction
 
-The current runtime is being moved from session-centered to event-graph-centered. `AgentSessionManager` remains important, but it becomes one actor inside the continuity runtime.
+The runtime is event-graph-centered. `AgentSessionManager` remains important, but it is one actor inside the continuity runtime.
 
 The continuity runtime owns the event append path, object/relation projection, patch proposal/application/rejection events, scoped views, behavior dispatch, relation behavior dispatch, capability registry hooks, and policy/approval gates. Events are the durable source of truth. The graph is a replayable projection.
 
 The detailed schema, rejected designs, package refactors, projection rules, behavior rules, branching model, and implementation plan are specified in [continuity-kernel.md](./continuity-kernel.md).
 
-Current session integration is enabled in Electron and opt-in for other hosts: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`. Electron creates a SQLite-backed continuity store at startup, passes its kernel into the session manager, exposes graph node/edge/patch reads over IPC, records actuator arming as safety-grant graph state, publishes host tool/modality/device/model capabilities, and lets the actuator safety gate validate against active graph grants.
+Current session integration is enabled in Electron and opt-in for other hosts: `AgentSessionManager` can be constructed with an `EventGraphKernel`, and emitted session events project into the session's `continuityRunId`. Electron creates a SQLite-backed event graph store at startup, passes its kernel into the session manager, exposes graph object/relation/event reads over IPC, records actuator arming as safety-grant graph state, publishes host tool/modality/device/model capabilities, and lets the actuator safety gate validate against active graph grants.
 
-The new event-graph implementation in `@exocortex/continuity` adds append-only `ContinuityEvent` storage, `EventSourcedGraph`, generic graph objects and relations, scoped graph views, `ReactiveGraphRuntime`, regular behaviors, relation behaviors, replay from event storage, and SQLite/in-memory event stores. Existing patch/node/edge tables are being removed rather than preserved as legacy ballast.
+The event-graph implementation in `@exocortex/continuity` provides append-only `ContinuityEvent` storage, `EventSourcedGraph`, generic graph objects and relations, scoped graph views, `ReactiveGraphRuntime`, regular behaviors, relation behaviors, replay from event storage, and SQLite/in-memory event stores. The old patch/node/edge tables have been removed.
 
 ### `agent_sessions`
 
@@ -56,7 +56,7 @@ Artifacts are durable products of a session: files, images, audio clips, transcr
 
 ### Devices, Modalities, Bindings
 
-Command AGI has a strong `PeripheralType` / `PeripheralInstance` split. Exocortex keeps that split but makes the semantic channel more explicit because a head-mounted wearable will have too many sensors and actuators for "peripheral" to be precise enough.
+Command AGI has a strong `PeripheralType` / `PeripheralInstance` split. Exocortex keeps that split but makes the semantic channel more explicit because a head-mounted wearable will have too many sensors and actuators for "modality" to be precise enough.
 
 The hierarchy is:
 
@@ -84,11 +84,11 @@ The binding is what an agent session actually receives or controls. It captures 
 
 ### `agent_session_modalities`
 
-The preferred name is `modalities`, not `peripherals`.
+The preferred name is `modalities`.
 
 Reasoning:
 
-- Some sources are not hardware peripherals. `app_input_text` is UI, browser screen projection is a session surface, and an LLM tool result can be virtual.
+- Some sources are not hardware devices. `app_input_text` is UI, browser screen projection is a session surface, and an LLM tool result can be virtual.
 - Sensors and actuators should share one routing model.
 - The same hardware can expose several modalities. A microphone can expose raw audio, VAD, diarization, and STT text.
 - The agent needs provenance at the semantic channel level, not just at the device level.
@@ -123,15 +123,13 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `packages/hardware` owns typed head bridge configuration for ESPs, ADC channels, analog muxes, and actuator outputs.
 - `packages/calibration` owns calibration profiles, raw-to-calibrated sample conversion, actuator safety overlays, projection/pointer calibration types, and calibration artifacts.
 - `packages/safety` owns actuator arming, output power limits, pulse limits, cooldown gates before host commands are written to hardware transports, and a grant-reader boundary for accepted graph grants.
-- `packages/peripherals` is currently the modality/device registry and bridge layer. The package name may later become `packages/modalities` or `packages/hardware`, but the code now models modalities as the first-class primitive.
+- `packages/modalities` is the modality/device registry and bridge layer.
 - `packages/session` owns concurrent long-running agent sessions, lifecycle transitions, modality binding, observation/action event emission, artifact recording, event subscriptions, bridge routing, and the runtime callback interface.
 - `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
 - `packages/computer-session` owns projected controllable non-browser computer sessions, pointer/keyboard actions, lifecycle events, and screen projection frames.
-- `packages/continuity` owns the continuity kernel foundation: branch-scoped graph state, patch proposal and acceptance, in-memory and SQLite graph stores, event projection, and behavior hooks.
-- Continuity behaviors currently include failure-review, unsupported-claim, contradiction-review, stale-evidence, hazardous-action approval, and completed-dependency unblocking patch proposal primitives.
-- Continuity branch helpers currently support branch creation, branch diffing, merge patch proposal, accepted merge application, and branch abandon/archive transitions.
-- Continuity capability helpers currently register capabilities as idempotent graph nodes and compute branch-scoped enabled capability hashes.
-- Continuity operational-state helpers currently accept calibration profiles, safety policies, safety grants, and grant approval nodes through graph patches, mark superseded calibration profiles as non-active while keeping them inspectable, link safety grants to approvals with `approved_by` edges, and provide branch-scoped readers for active profiles, policies, grants, and approvals.
+- `packages/continuity` owns the event graph substrate: event storage, replayable graph projection, patch proposal/application/rejection, frames, reactive behaviors, session projection, capabilities, and safety/calibration operational state.
+- Continuity capability helpers register capabilities as idempotent graph objects and compute enabled capability hashes.
+- Continuity operational-state helpers accept calibration profiles, safety policies, safety grants, and grant approval objects into the event graph, mark superseded calibration profiles as non-active while keeping them inspectable, link safety grants to approvals with `approved_by` relations, and provide graph readers for active profiles, policies, grants, and approvals.
 - `apps/hardware-cli` owns direct serial hardware operations for bench work: config printing, frame listening, bridge inspection/ping, and validated actuator commands.
 - `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
 - `firmware/esp32-head-bridge` is the ESP32 bridge firmware matching the host serial protocol and default hardware config.
@@ -184,7 +182,7 @@ The Ollama and OpenAI-compatible providers consume real response streams. Text d
 
 Model-driven sessions use an `AgentToolRouter`. Tool definitions are supplied to each model turn, tool calls are recorded as `tool_call.started`, `tool_call.completed`, or `tool_call.failed`, and successful tool outputs are appended as tool messages before the next bounded model pass.
 
-When a `ContinuityCapabilityRegistry` is attached to the model runtime, model turns receive only tool definitions whose graph capability nodes are enabled for the session branch. Disabled or absent tool capabilities are rejected before execution even if a model emits the call. Assistant message and tool-call events include model/runtime ids, prompt hash, policy hash, and the branch capability-set hash so later graph inspection can reconstruct the capability surface used for the turn. Electron runs its model runtime with this registry attached.
+When an `EventGraphCapabilityRegistry` is attached to the model runtime, model turns receive only tool definitions whose graph capability objects are enabled. Disabled or absent tool capabilities are rejected before execution even if a model emits the call. Assistant message and tool-call events include model/runtime ids, prompt hash, policy hash, and capability-set hash so later graph inspection can reconstruct the capability surface used for the turn. Electron runs its model runtime with this registry attached.
 
 Electron installs concrete browser tools into that router. A model can create or select a projected Electron browser session, then call tools for navigation, clicks, typing, key presses, scrolling, JavaScript evaluation, and frame capture. Those tool calls also emit browser session events into the agent event log.
 
@@ -198,7 +196,7 @@ The reference checkout is intentionally ignored by Git at `refs/command-agi-gamm
 - Browser control should be modeled as a projected controllable session, not as phone control.
 - Content/events should preserve multimodal provenance and artifacts.
 
-The main intentional divergence is that Exocortex promotes modalities above tools. In command-agi-gamma, most capability structure is represented through peripherals and tool schemas. For Exocortex, a capability may still become a tool, but the raw sensory/actuator channel itself is a durable session object.
+The main intentional divergence is that Exocortex promotes modalities above tools. In command-agi-gamma, most capability structure is represented through modalities and tool schemas. For Exocortex, a capability may still become a tool, but the raw sensory/actuator channel itself is a durable session object.
 
 ## Validation
 

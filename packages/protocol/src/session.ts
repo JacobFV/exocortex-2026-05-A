@@ -21,7 +21,7 @@ export interface AgentRuntimeRef {
 
 export interface AgentSession {
   id: AgentSessionId;
-  branchId: string;
+  continuityRunId: string;
   title?: string;
   goal: string;
   state: AgentSessionState;

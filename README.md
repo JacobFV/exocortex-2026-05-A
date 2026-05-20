@@ -24,7 +24,7 @@ Every observation and action keeps its source modality explicit so the agent can
 - `packages/calibration` - calibration profiles, sample conversion, and calibration artifacts
 - `packages/safety` - actuator arming, power limits, pulse limits, and cooldown gates
 - `packages/session` - concurrent agent session manager, modality binding, and in-memory event/artifact store
-- `packages/peripherals` - device/modality registry and hardware/host bridge abstractions
+- `packages/modalities` - device/modality registry and hardware/host bridge abstractions
 - `packages/browser-session` - browser session control abstractions
 - `packages/computer-session` - projected computer session control abstractions
 - `packages/continuity` - continuity kernel foundation: branches, patches, graph stores, projection, and behavior hooks

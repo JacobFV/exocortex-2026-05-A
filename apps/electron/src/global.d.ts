@@ -9,9 +9,9 @@ declare global {
       listBindings(sessionId: string): Promise<unknown[]>;
       listArtifacts(sessionId: string): Promise<unknown[]>;
       listModalities(): Promise<unknown[]>;
-      listContinuityNodes(branchId?: string): Promise<unknown[]>;
-      listContinuityEdges(branchId?: string): Promise<unknown[]>;
-      listContinuityPatches(branchId?: string): Promise<unknown[]>;
+      listContinuityObjects(): Promise<unknown[]>;
+      listContinuityRelations(): Promise<unknown[]>;
+      listContinuityEvents(): Promise<unknown[]>;
       injectAppText(text: string): Promise<void>;
       sendModalityAction(sessionId: string, bindingId: string, actionType: string, value: unknown): Promise<unknown>;
       armActuator(channel: string, reason: string): Promise<unknown>;

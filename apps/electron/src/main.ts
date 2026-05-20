@@ -5,7 +5,7 @@ import { BrowserSessionManager } from "@exocortex/browser-session";
 import { acceptSafetyGrant, acceptSafetyPolicy, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveSafetyGrants, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
-import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
+import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ActuatorSafetyGate } from "@exocortex/safety";
 import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter } from "@exocortex/session";
 import { ElectronBrowserController } from "./electron-browser-controller.js";
@@ -122,9 +122,9 @@ ipcMain.handle("exocortex:list-modalities", () => ({
   devices: modalityRegistry.listDeviceInstances(),
   modalities: modalityRegistry.listModalityInstances()
 }));
-ipcMain.handle("exocortex:list-continuity-nodes", () => eventGraphKernel.listObjects());
-ipcMain.handle("exocortex:list-continuity-edges", () => eventGraphKernel.listRelations());
-ipcMain.handle("exocortex:list-continuity-patches", () => eventGraph.snapshot().events);
+ipcMain.handle("exocortex:list-continuity-objects", () => eventGraphKernel.listObjects());
+ipcMain.handle("exocortex:list-continuity-relations", () => eventGraphKernel.listRelations());
+ipcMain.handle("exocortex:list-continuity-events", () => eventGraph.snapshot().events);
 ipcMain.handle("exocortex:inject-app-text", (_event, text: string) => appTextBridge.injectText(text));
 ipcMain.handle("exocortex:send-modality-action", (_event, sessionId: AgentSessionId, bindingId: AgentSessionModalityId, actionType: string, value: unknown) =>
   sessionManager.act(sessionId, bindingId, actionType, value)
@@ -295,9 +295,9 @@ function renderHtml(): string {
         sessionsEl.textContent = JSON.stringify(sessions, null, 2);
         modalitiesEl.textContent = JSON.stringify(await window.exocortex.listModalities(), null, 2);
         continuityEl.textContent = JSON.stringify({
-          nodes: await window.exocortex.listContinuityNodes("main"),
-          edges: await window.exocortex.listContinuityEdges("main"),
-          patches: await window.exocortex.listContinuityPatches("main")
+          objects: await window.exocortex.listContinuityObjects(),
+          relations: await window.exocortex.listContinuityRelations(),
+          events: await window.exocortex.listContinuityEvents()
         }, null, 2);
         eventsEl.textContent = selectedSessionId
           ? JSON.stringify(await window.exocortex.listEvents(selectedSessionId), null, 2)
