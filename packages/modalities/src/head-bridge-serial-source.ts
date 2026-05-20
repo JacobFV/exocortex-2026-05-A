@@ -2,6 +2,7 @@ import { applyAnalogCalibration, type CalibrationProfile } from "@exocortex/cali
 import type { AnalogSample } from "@exocortex/hardware";
 import type { ModalityInstance } from "@exocortex/protocol";
 import { NodeSerialTransport, type NodeSerialTransportOptions, type SerialFrame } from "@exocortex/transports";
+import type { SerialTransportHealth } from "@exocortex/transports";
 import type { ModalityObservation } from "./bridge.js";
 
 export interface HeadBridgeSerialSourceOptions {
@@ -47,6 +48,10 @@ export class HeadBridgeSerialSource {
       value,
       timestamp: new Date().toISOString()
     });
+  }
+
+  health(): SerialTransportHealth {
+    return this.transport.health();
   }
 
   setCalibrationProfile(profile: CalibrationProfile | undefined): void {

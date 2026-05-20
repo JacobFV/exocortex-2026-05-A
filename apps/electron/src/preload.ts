@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("exocortex", {
   transcribeArtifact: (sessionId: string, artifactId: string, providerId?: string) => ipcRenderer.invoke("exocortex:transcribe-artifact", sessionId, artifactId, providerId),
   listModels: () => ipcRenderer.invoke("exocortex:list-models"),
   listModalities: () => ipcRenderer.invoke("exocortex:list-modalities"),
+  transportHealth: () => ipcRenderer.invoke("exocortex:transport-health"),
   listContinuityObjects: () => ipcRenderer.invoke("exocortex:list-continuity-objects"),
   listContinuityRelations: () => ipcRenderer.invoke("exocortex:list-continuity-relations"),
   listContinuityEvents: () => ipcRenderer.invoke("exocortex:list-continuity-events"),

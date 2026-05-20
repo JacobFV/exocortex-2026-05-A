@@ -15,6 +15,7 @@ declare global {
       transcribeArtifact(sessionId: string, artifactId: string, providerId?: string): Promise<unknown>;
       listModels(): Promise<unknown>;
       listModalities(): Promise<unknown[]>;
+      transportHealth(): Promise<unknown>;
       listContinuityObjects(): Promise<unknown[]>;
       listContinuityRelations(): Promise<unknown[]>;
       listContinuityEvents(): Promise<unknown[]>;

@@ -11,6 +11,7 @@ export function encodeSerialFrame(frame: SerialFrame): string {
 
 export class SerialFrameDecoder {
   private buffer = "";
+  framingErrors = 0;
 
   push(chunk: string): SerialFrame[] {
     this.buffer += chunk;
@@ -21,7 +22,11 @@ export class SerialFrameDecoder {
       const line = this.buffer.slice(0, index).trim();
       this.buffer = this.buffer.slice(index + 1);
       if (!line) continue;
-      frames.push(parseSerialFrame(line));
+      try {
+        frames.push(parseSerialFrame(line));
+      } catch (error) {
+        this.framingErrors += 1;
+      }
     }
     return frames;
   }

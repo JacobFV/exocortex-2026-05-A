@@ -111,7 +111,9 @@ if (headBridgeSerialPath) {
     headBridgeModalities.filter((modality) => modality.direction === "input"),
     {
       path: headBridgeSerialPath,
-      baudRate: Number(process.env.EXOCORTEX_HEAD_BRIDGE_BAUD ?? 115200)
+      baudRate: Number(process.env.EXOCORTEX_HEAD_BRIDGE_BAUD ?? 115200),
+      autoReconnect: process.env.EXOCORTEX_HEAD_BRIDGE_RECONNECT !== "false",
+      maxWriteQueue: Number(process.env.EXOCORTEX_HEAD_BRIDGE_MAX_WRITE_QUEUE ?? 64)
     },
     { calibrationProfile: activeHeadBridgeCalibrationProfile() }
   );
@@ -221,6 +223,13 @@ ipcMain.handle("exocortex:list-modalities", () => ({
   modalityTypes: modalityRegistry.listModalityTypes(),
   devices: modalityRegistry.listDeviceInstances(),
   modalities: modalityRegistry.listModalityInstances()
+}));
+ipcMain.handle("exocortex:transport-health", () => ({
+  headBridge: headBridgeSource?.health() ?? {
+    open: false,
+    configured: false,
+    reason: "EXOCORTEX_HEAD_BRIDGE_SERIAL is not configured"
+  }
 }));
 ipcMain.handle("exocortex:list-continuity-objects", () => eventGraphKernel.listObjects());
 ipcMain.handle("exocortex:list-continuity-relations", () => eventGraphKernel.listRelations());

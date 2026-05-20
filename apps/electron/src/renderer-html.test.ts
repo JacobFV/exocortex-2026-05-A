@@ -41,6 +41,7 @@ for (const preloadApi of [
   "transcribeArtifact",
   "listModels",
   "listModalities",
+  "transportHealth",
   "listContinuityObjects",
   "listContinuityRelations",
   "listContinuityEvents",

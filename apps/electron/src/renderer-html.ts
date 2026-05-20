@@ -413,6 +413,7 @@ export function renderHtml(): string {
         mediaProviders: { stt: [], tts: [], imageCapture: [], audioCapture: [], videoCapture: [] },
         models: { models: [], health: [] },
         modalities: { devices: [], modalities: [], deviceTypes: [], modalityTypes: [] },
+        transportHealth: {},
         continuity: { objects: [], relations: [], events: [] },
         safety: { policies: [], grants: [], denials: [] },
         calibrationProfiles: [],
@@ -469,6 +470,7 @@ export function renderHtml(): string {
           const selected = selectedSession();
           const base = await Promise.all([
             window.exocortex.listModalities(),
+            window.exocortex.transportHealth(),
             window.exocortex.listContinuityObjects(),
             window.exocortex.listContinuityRelations(),
             window.exocortex.listContinuityEvents(),
@@ -479,12 +481,13 @@ export function renderHtml(): string {
             window.exocortex.listMediaProviders()
           ]);
           state.modalities = base[0] || state.modalities;
-          state.continuity = { objects: base[1] || [], relations: base[2] || [], events: base[3] || [] };
-          state.safety = base[4] || { policies: [], grants: [], denials: [] };
-          state.browsers = base[5] || [];
-          state.models = base[6] || { models: [], health: [] };
-          state.calibrationProfiles = base[7] || [];
-          state.mediaProviders = base[8] || state.mediaProviders;
+          state.transportHealth = base[1] || {};
+          state.continuity = { objects: base[2] || [], relations: base[3] || [], events: base[4] || [] };
+          state.safety = base[5] || { policies: [], grants: [], denials: [] };
+          state.browsers = base[6] || [];
+          state.models = base[7] || { models: [], health: [] };
+          state.calibrationProfiles = base[8] || [];
+          state.mediaProviders = base[9] || state.mediaProviders;
           if (selected) {
             const details = await Promise.all([
               window.exocortex.listEvents(selected.id),
@@ -663,6 +666,10 @@ export function renderHtml(): string {
               (rows || '<tr><td colspan="6">No modalities</td></tr>') +
               '</tbody></table>' +
             '</div>' +
+          '</section>' +
+          '<section class="panel">' +
+            '<div class="panel-header"><h2>Transport Health</h2></div>' +
+            '<div class="panel-body"><div class="json">' + json(state.transportHealth) + '</div></div>' +
           '</section>';
       }
 
