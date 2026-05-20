@@ -213,6 +213,14 @@ const navigate = await browserTools.find((tool) => tool.definition.name === "bro
 assert.deepEqual(browserActions[0], { type: "navigate", url: "https://example.com" });
 assert.equal((navigate.output as { frame?: { width?: number } }).frame?.width, 800);
 
+const browserFrame = (navigate.output as { frame: Awaited<ReturnType<BrowserController["captureFrame"]>> }).frame!;
+toolSessionManager.recordBrowserCreated(toolSession.id, browserFrame.browserSessionId);
+toolSessionManager.recordBrowserAction(toolSession.id, browserFrame.browserSessionId, { type: "navigate", url: "https://example.com" });
+toolSessionManager.recordBrowserProjectionFrame(toolSession.id, browserFrame);
+assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "browser.created"));
+assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "browser.action" && event.action.type === "navigate"));
+assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "browser.projection_frame" && event.frame.width === 800));
+
 const continuityGraph = new EventSourcedGraph({ runId: "session_projection", store: new InMemoryEventSourcedGraphStore() });
 const eventGraphKernel = new EventGraphKernel({ graph: continuityGraph });
 const continuityManager = new AgentSessionManager({ eventGraphKernel });

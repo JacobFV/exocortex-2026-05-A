@@ -16,10 +16,10 @@ contextBridge.exposeInMainWorld("exocortex", {
     ipcRenderer.invoke("exocortex:send-modality-action", sessionId, bindingId, actionType, value),
   armActuator: (channel: string, reason: string) => ipcRenderer.invoke("exocortex:arm-actuator", channel, reason),
   listActuatorSafety: () => ipcRenderer.invoke("exocortex:list-actuator-safety"),
-  createBrowserSession: () => ipcRenderer.invoke("exocortex:create-browser-session"),
+  createBrowserSession: (sessionId?: string) => ipcRenderer.invoke("exocortex:create-browser-session", sessionId),
   listBrowserSessions: () => ipcRenderer.invoke("exocortex:list-browser-sessions"),
-  browserDispatch: (browserSessionId: string, action: unknown) => ipcRenderer.invoke("exocortex:browser-dispatch", browserSessionId, action),
-  browserCapture: (browserSessionId: string) => ipcRenderer.invoke("exocortex:browser-capture", browserSessionId),
+  browserDispatch: (browserSessionId: string, action: unknown, sessionId?: string) => ipcRenderer.invoke("exocortex:browser-dispatch", browserSessionId, action, sessionId),
+  browserCapture: (browserSessionId: string, sessionId?: string) => ipcRenderer.invoke("exocortex:browser-capture", browserSessionId, sessionId),
   onSessionEvent: (listener: (event: unknown) => void) => {
     const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload);
     ipcRenderer.on("exocortex:session-event", wrapped);

@@ -797,19 +797,19 @@ export function renderHtml(): string {
             await refresh();
           }
           if (action === 'create-browser') {
-            const frame = await window.exocortex.createBrowserSession();
+            const frame = await window.exocortex.createBrowserSession(state.selectedSessionId);
             state.browserFrame = frame;
             await refresh();
           }
           if (action === 'capture-browser') {
             const id = currentBrowserId();
-            if (id) state.browserFrame = await window.exocortex.browserCapture(id);
+            if (id) state.browserFrame = await window.exocortex.browserCapture(id, state.selectedSessionId);
             await refresh();
           }
           if (action === 'navigate-browser') {
             const id = currentBrowserId();
             const url = el('#browser-url').value.trim();
-            if (id && url) state.browserFrame = await window.exocortex.browserDispatch(id, { type: 'navigate', url: url });
+            if (id && url) state.browserFrame = await window.exocortex.browserDispatch(id, { type: 'navigate', url: url }, state.selectedSessionId);
             await refresh();
           }
           if (action === 'arm-actuator') {

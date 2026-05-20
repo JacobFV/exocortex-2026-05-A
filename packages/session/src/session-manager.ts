@@ -12,7 +12,10 @@ import {
   type AgentSessionId,
   type AgentSessionModalityBinding,
   type AgentSessionModalityId,
-  type AgentSessionState
+  type AgentSessionState,
+  type BrowserAction,
+  type BrowserProjectionFrame,
+  type BrowserSessionId
 } from "@exocortex/protocol";
 import type { AgentRuntime } from "./agent-runtime.js";
 import { ModelDrivenAgentRuntime } from "./agent-runtime.js";
@@ -162,6 +165,21 @@ export class AgentSessionManager {
   act(sessionId: AgentSessionId, bindingId: AgentSessionModalityId, actionType: string, value: unknown): AgentSessionEvent {
     this.requireBinding(sessionId, bindingId);
     return this.emit(sessionId, { type: "modality.action", bindingId, modalityId: bindingId, actionType, value });
+  }
+
+  recordBrowserCreated(sessionId: AgentSessionId, browserSessionId: BrowserSessionId): AgentSessionEvent {
+    this.requireSession(sessionId);
+    return this.emit(sessionId, { type: "browser.created", browserSessionId });
+  }
+
+  recordBrowserAction(sessionId: AgentSessionId, browserSessionId: BrowserSessionId, action: BrowserAction): AgentSessionEvent {
+    this.requireSession(sessionId);
+    return this.emit(sessionId, { type: "browser.action", browserSessionId, action });
+  }
+
+  recordBrowserProjectionFrame(sessionId: AgentSessionId, frame: BrowserProjectionFrame): AgentSessionEvent {
+    this.requireSession(sessionId);
+    return this.emit(sessionId, { type: "browser.projection_frame", frame });
   }
 
   events(sessionId: AgentSessionId): AgentSessionEvent[] {

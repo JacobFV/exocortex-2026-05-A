@@ -166,17 +166,25 @@ ipcMain.handle("exocortex:list-actuator-safety", () => ({
   policies: actuatorSafetyGate.listPolicies(),
   grants: actuatorSafetyGate.listGrants()
 }));
-ipcMain.handle("exocortex:create-browser-session", async () => {
+ipcMain.handle("exocortex:create-browser-session", async (_event, sessionId?: AgentSessionId) => {
   const browser = await createBrowserSessionSurface();
-  return browserSessionManager.captureFrame(browser.id);
+  if (sessionId) sessionManager.recordBrowserCreated(sessionId, browser.id);
+  const frame = await browserSessionManager.captureFrame(browser.id);
+  if (sessionId && frame) sessionManager.recordBrowserProjectionFrame(sessionId, frame);
+  return frame;
 });
 ipcMain.handle("exocortex:list-browser-sessions", () => browserSessionManager.list());
-ipcMain.handle("exocortex:browser-dispatch", (_event, browserSessionId: BrowserSessionId, action: BrowserAction) =>
-  browserSessionManager.dispatch(browserSessionId, action)
-);
-ipcMain.handle("exocortex:browser-capture", (_event, browserSessionId: BrowserSessionId) =>
-  browserSessionManager.captureFrame(browserSessionId)
-);
+ipcMain.handle("exocortex:browser-dispatch", async (_event, browserSessionId: BrowserSessionId, action: BrowserAction, sessionId?: AgentSessionId) => {
+  const frame = await browserSessionManager.dispatch(browserSessionId, action);
+  if (sessionId) sessionManager.recordBrowserAction(sessionId, browserSessionId, action);
+  if (sessionId && frame) sessionManager.recordBrowserProjectionFrame(sessionId, frame);
+  return frame;
+});
+ipcMain.handle("exocortex:browser-capture", async (_event, browserSessionId: BrowserSessionId, sessionId?: AgentSessionId) => {
+  const frame = await browserSessionManager.captureFrame(browserSessionId);
+  if (sessionId && frame) sessionManager.recordBrowserProjectionFrame(sessionId, frame);
+  return frame;
+});
 
 async function createBrowserSessionSurface() {
   const device = modalityRegistry.createDeviceInstance({
