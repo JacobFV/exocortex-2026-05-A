@@ -384,6 +384,7 @@ export function renderHtml(): string {
           <button type="button" data-tab="timeline" class="active">Timeline</button>
           <button type="button" data-tab="modalities">Modalities</button>
           <button type="button" data-tab="browser">Browser</button>
+          <button type="button" data-tab="media">Media</button>
           <button type="button" data-tab="safety">Safety</button>
           <button type="button" data-tab="calibration">Calibration</button>
           <button type="button" data-tab="graph">Graph</button>
@@ -394,6 +395,7 @@ export function renderHtml(): string {
           <section id="view-timeline" class="view"></section>
           <section id="view-modalities" class="view hidden"></section>
           <section id="view-browser" class="view hidden"></section>
+          <section id="view-media" class="view hidden"></section>
           <section id="view-safety" class="view hidden"></section>
           <section id="view-calibration" class="view hidden"></section>
           <section id="view-graph" class="view hidden"></section>
@@ -408,6 +410,7 @@ export function renderHtml(): string {
         events: [],
         bindings: [],
         artifacts: [],
+        mediaProviders: { stt: [], tts: [], imageCapture: [], audioCapture: [], videoCapture: [] },
         models: { models: [], health: [] },
         modalities: { devices: [], modalities: [], deviceTypes: [], modalityTypes: [] },
         continuity: { objects: [], relations: [], events: [] },
@@ -472,7 +475,8 @@ export function renderHtml(): string {
             window.exocortex.listActuatorSafety(),
             window.exocortex.listBrowserSessions(),
             window.exocortex.listModels(),
-            window.exocortex.listCalibrationProfiles()
+            window.exocortex.listCalibrationProfiles(),
+            window.exocortex.listMediaProviders()
           ]);
           state.modalities = base[0] || state.modalities;
           state.continuity = { objects: base[1] || [], relations: base[2] || [], events: base[3] || [] };
@@ -480,6 +484,7 @@ export function renderHtml(): string {
           state.browsers = base[5] || [];
           state.models = base[6] || { models: [], health: [] };
           state.calibrationProfiles = base[7] || [];
+          state.mediaProviders = base[8] || state.mediaProviders;
           if (selected) {
             const details = await Promise.all([
               window.exocortex.listEvents(selected.id),
@@ -523,6 +528,7 @@ export function renderHtml(): string {
         renderTimeline();
         renderModalities();
         renderBrowser();
+        renderMedia();
         renderSafety();
         renderCalibration();
         renderGraph();
@@ -680,6 +686,36 @@ export function renderHtml(): string {
             '<section class="panel">' +
               '<div class="panel-header"><h2>Browser Sessions</h2><span class="pill">' + state.browsers.length + '</span></div>' +
               '<div class="panel-body"><div class="json">' + json(state.browsers) + '</div></div>' +
+            '</section>' +
+          '</div>';
+      }
+
+      function renderMedia() {
+        const session = selectedSession();
+        const artifactOptions = state.artifacts
+          .filter(function (artifact) { return artifact.kind === 'audio' || artifact.kind === 'video'; })
+          .map(function (artifact) { return '<option value="' + escapeHtml(artifact.id) + '">' + escapeHtml(artifact.title || artifact.id) + '</option>'; })
+          .join('');
+        el('#view-media').innerHTML =
+          '<div class="two-col">' +
+            '<section class="panel">' +
+              '<div class="panel-header"><h2>Capture</h2><span class="pill">' + escapeHtml(session?.id ? shortId(session.id) : 'no session') + '</span></div>' +
+              '<div class="panel-body stack">' +
+                '<div class="three-col">' +
+                  '<button type="button" data-action="capture-image">Image</button>' +
+                  '<button type="button" data-action="capture-audio">Audio</button>' +
+                  '<button type="button" data-action="capture-video">Video</button>' +
+                '</div>' +
+                '<label>Duration Ms<input id="media-duration" value="1000" /></label>' +
+                '<label>TTS Text<input id="tts-text" value="Exocortex speech test" /></label>' +
+                '<button type="button" data-action="synthesize-speech">Synthesize Speech</button>' +
+                '<label>Audio Artifact<select id="transcribe-artifact">' + artifactOptions + '</select></label>' +
+                '<button type="button" data-action="transcribe-artifact">Transcribe Artifact</button>' +
+              '</div>' +
+            '</section>' +
+            '<section class="panel">' +
+              '<div class="panel-header"><h2>Providers</h2></div>' +
+              '<div class="panel-body"><div class="json">' + json(state.mediaProviders) + '</div></div>' +
             '</section>' +
           '</div>';
       }
@@ -866,6 +902,25 @@ export function renderHtml(): string {
             const id = currentBrowserId();
             const url = el('#browser-url').value.trim();
             if (id && url) state.browserFrame = await window.exocortex.browserDispatch(id, { type: 'navigate', url: url }, state.selectedSessionId);
+            await refresh();
+          }
+          if (action === 'capture-image' || action === 'capture-audio' || action === 'capture-video') {
+            const session = selectedSession();
+            const kind = action === 'capture-image' ? 'image' : action === 'capture-audio' ? 'audio' : 'video';
+            const durationMs = Number(el('#media-duration').value);
+            if (session) await window.exocortex.captureMedia(session.id, kind, { durationMs: Number.isFinite(durationMs) ? durationMs : undefined });
+            await refresh();
+          }
+          if (action === 'synthesize-speech') {
+            const session = selectedSession();
+            const text = el('#tts-text').value.trim();
+            if (session && text) await window.exocortex.synthesizeSpeech(session.id, text);
+            await refresh();
+          }
+          if (action === 'transcribe-artifact') {
+            const session = selectedSession();
+            const artifactId = el('#transcribe-artifact').value;
+            if (session && artifactId) await window.exocortex.transcribeArtifact(session.id, artifactId);
             await refresh();
           }
           if (action === 'arm-actuator') {

@@ -4,7 +4,7 @@ import { renderHtml } from "./renderer-html.js";
 const html = renderHtml();
 
 assert.match(html, /<main class="app">/);
-for (const tab of ["timeline", "modalities", "browser", "safety", "calibration", "graph", "artifacts"]) {
+for (const tab of ["timeline", "modalities", "browser", "media", "safety", "calibration", "graph", "artifacts"]) {
   assert.match(html, new RegExp(`data-tab="${tab}"`));
   assert.match(html, new RegExp(`id="view-${tab}"`));
 }
@@ -15,6 +15,11 @@ for (const action of [
   "create-browser",
   "capture-browser",
   "navigate-browser",
+  "capture-image",
+  "capture-audio",
+  "capture-video",
+  "synthesize-speech",
+  "transcribe-artifact",
   "arm-actuator",
   "send-action",
   "accept-calibration",
@@ -30,6 +35,10 @@ for (const preloadApi of [
   "listEvents",
   "listBindings",
   "listArtifacts",
+  "listMediaProviders",
+  "captureMedia",
+  "synthesizeSpeech",
+  "transcribeArtifact",
   "listModels",
   "listModalities",
   "listContinuityObjects",

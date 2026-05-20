@@ -5,11 +5,12 @@ import { BrowserSessionManager } from "@exocortex/browser-session";
 import { type GraphObject, acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, assembleGraphContext, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveCalibrationProfiles, listActiveSafetyGrants, listSafetyDenials, recordSafetyDenial, renderGraphContextForPrompt, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
 import { type CalibrationProfile, validateCalibrationProfile } from "@exocortex/calibration";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
+import { MediaRouter, type CapturedMedia } from "@exocortex/media";
 import { ModelRouter } from "@exocortex/models";
-import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
+import type { AgentSessionArtifact, AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ActuatorSafetyGate } from "@exocortex/safety";
-import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter, SQLiteAgentSessionStore } from "@exocortex/session";
+import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, FileArtifactBlobStore, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter, SQLiteAgentSessionStore } from "@exocortex/session";
 import { ElectronBrowserController } from "./electron-browser-controller.js";
 import { renderHtml } from "./renderer-html.js";
 
@@ -24,6 +25,8 @@ const eventGraphKernel = new EventGraphKernel({
 });
 const capabilityRegistry = new EventGraphCapabilityRegistry(eventGraph);
 const agentSessionStore = new SQLiteAgentSessionStore(resolveAgentSessionDbPath());
+const artifactBlobStore = new FileArtifactBlobStore(resolveArtifactBlobPath());
+const mediaRouter = new MediaRouter();
 const modelRouter = new ModelRouter();
 const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 const toolRouter = new AgentToolRouter(
@@ -172,6 +175,43 @@ ipcMain.handle("exocortex:list-sessions", () => sessionManager.list());
 ipcMain.handle("exocortex:list-events", (_event, sessionId: AgentSessionId) => sessionManager.events(sessionId));
 ipcMain.handle("exocortex:list-bindings", (_event, sessionId: AgentSessionId) => sessionManager.listBindings(sessionId));
 ipcMain.handle("exocortex:list-artifacts", (_event, sessionId: AgentSessionId) => sessionManager.artifacts(sessionId));
+ipcMain.handle("exocortex:list-media-providers", () => mediaRouter.list());
+ipcMain.handle("exocortex:capture-media", async (_event, sessionId: AgentSessionId, kind: "image" | "audio" | "video", options: { providerId?: string; deviceId?: string; durationMs?: number } = {}) => {
+  const captured = kind === "image"
+    ? await mediaRouter.imageCapture(options.providerId).captureImage({ deviceId: options.deviceId, durationMs: options.durationMs })
+    : kind === "audio"
+      ? await mediaRouter.audioCapture(options.providerId).captureAudio({ deviceId: options.deviceId, durationMs: options.durationMs })
+      : await mediaRouter.videoCapture(options.providerId).captureVideo({ deviceId: options.deviceId, durationMs: options.durationMs });
+  return createMediaArtifact(sessionId, kind, captured);
+});
+ipcMain.handle("exocortex:synthesize-speech", async (_event, sessionId: AgentSessionId, text: string, providerId?: string) => {
+  const speech = await mediaRouter.tts(providerId).synthesize(text);
+  const data = speech.data ?? (speech.filePath ? await import("node:fs").then((fs) => fs.readFileSync(speech.filePath!)) : undefined);
+  if (!data) throw new Error("TTS provider did not return audio data or filePath");
+  const stored = artifactBlobStore.put({
+    sessionId,
+    kind: "audio",
+    title: "Synthesized speech",
+    data,
+    mimeType: speech.mimeType,
+    metadata: { providerId: providerId ?? "default", durationMs: speech.durationMs, ...(speech.metadata ?? {}) }
+  });
+  return sessionManager.createArtifact(stored.artifact);
+});
+ipcMain.handle("exocortex:transcribe-artifact", async (_event, sessionId: AgentSessionId, artifactId: string, providerId?: string) => {
+  const artifact = sessionManager.artifacts(sessionId).find((candidate) => candidate.id === artifactId);
+  if (!artifact) throw new Error(`Unknown artifact for transcription: ${artifactId}`);
+  const data = artifactBlobStore.read(artifact);
+  const transcript = await mediaRouter.stt(providerId).transcribe({ data, mimeType: artifact.mimeType ?? "audio/wav", filename: artifact.title });
+  return sessionManager.createArtifact({
+    sessionId,
+    kind: "transcript",
+    title: `Transcript for ${artifact.title}`,
+    mimeType: "application/json",
+    value: transcript,
+    metadata: { sourceArtifactId: artifact.id, providerId: providerId ?? "default" }
+  });
+});
 ipcMain.handle("exocortex:list-models", async () => ({
   models: modelRouter.list(),
   health: await modelRouter.health()
@@ -351,6 +391,28 @@ function resolveAgentSessionDbPath(): string {
   const dbPath = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "agent-sessions.db");
   mkdirSync(dirname(dbPath), { recursive: true });
   return dbPath;
+}
+
+function resolveArtifactBlobPath(): string {
+  const configured = process.env.EXOCORTEX_ARTIFACT_BLOB_DIR;
+  return configured && configured.length > 0 ? configured : join(app.getPath("userData"), "artifact-blobs");
+}
+
+function createMediaArtifact(sessionId: AgentSessionId, kind: "image" | "audio" | "video", captured: CapturedMedia): AgentSessionArtifact {
+  const stored = artifactBlobStore.put({
+    sessionId,
+    kind,
+    title: captured.filename ?? `${kind} capture`,
+    data: captured.data,
+    mimeType: captured.mimeType,
+    metadata: {
+      capturedAt: captured.capturedAt,
+      sourceFilePath: captured.filePath,
+      durationMs: captured.durationMs,
+      ...(captured.metadata ?? {})
+    }
+  });
+  return sessionManager.createArtifact(stored.artifact);
 }
 
 function runtimeRefForModel(model: string) {
