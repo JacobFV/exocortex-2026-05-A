@@ -29,6 +29,7 @@ Every observation and action keeps its source modality explicit so the agent can
 - `packages/computer-session` - projected computer session control abstractions
 - `packages/continuity` - event-sourced continuity graph, SQLite/in-memory event stores, session projection, capabilities, safety/calibration operational state, frames, patches, and reactive behavior hooks
 - `apps/hardware-cli` - serial hardware inspection, ping/listen, and validated actuation
+- `apps/operator-cli` - continuity run listing, summaries, and export files for operators
 - `docs/architecture.md` - architecture articulation and naming rationale
 - `docs/continuity-kernel.md` - EventGraph continuity substrate specification, schema, rejected designs, and invariants
 - `docs/objectives.md` - durable objective ledger for product, hardware, model, and runtime scope
