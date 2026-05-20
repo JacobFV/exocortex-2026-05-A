@@ -1,6 +1,6 @@
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
-import Database from "better-sqlite3";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import type { Database as SqliteDatabase, Statement } from "better-sqlite3";
 import type { ContinuityEvent, EventSourcedGraphStore } from "./event-graph-types.js";
 
@@ -30,6 +30,59 @@ export class InMemoryEventSourcedGraphStore implements EventSourcedGraphStore {
   }
 }
 
+export class JsonFileEventSourcedGraphStore implements EventSourcedGraphStore {
+  constructor(private readonly rootDir: string) {
+    mkdirSync(rootDir, { recursive: true });
+  }
+
+  appendEvent(event: ContinuityEvent): void {
+    const events = this.listEvents(event.runId);
+    if (events.some((candidate) => candidate.id === event.id || candidate.sequence === event.sequence)) return;
+    this.appendJsonLine(this.eventsPath(event.runId), event);
+  }
+
+  listEvents(runId: string): ContinuityEvent[] {
+    return this.readJsonLines<ContinuityEvent>(this.eventsPath(runId)).sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id));
+  }
+
+  listRuns(): string[] {
+    return readdirSync(this.rootDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((runId) => this.listEvents(runId).length > 0)
+      .sort();
+  }
+
+  transaction<T>(fn: () => T): T {
+    return fn();
+  }
+
+  private eventsPath(runId: string): string {
+    return join(this.rootDir, runId, "events.jsonl");
+  }
+
+  private appendJsonLine(path: string, value: unknown): void {
+    mkdirSync(dirname(path), { recursive: true });
+    const existing = this.safeRead(path);
+    writeFileSync(path, `${existing}${JSON.stringify(value)}\n`, "utf8");
+  }
+
+  private readJsonLines<T>(path: string): T[] {
+    return this.safeRead(path)
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as T);
+  }
+
+  private safeRead(path: string): string {
+    try {
+      return readFileSync(path, "utf8");
+    } catch {
+      return "";
+    }
+  }
+}
+
 export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
   private readonly db: SqliteDatabase;
   private readonly append: Statement;
@@ -38,7 +91,7 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
 
   constructor(dbPath: string) {
     if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true });
-    this.db = new Database(dbPath);
+    this.db = loadSqliteDatabase()(dbPath);
     this.db.pragma("foreign_keys = ON");
     this.db.pragma("busy_timeout = 5000");
     if (dbPath !== ":memory:") this.db.pragma("journal_mode = WAL");
@@ -124,4 +177,11 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
       })();
     }
   }
+}
+
+type BetterSqlite3Factory = (path: string) => SqliteDatabase;
+
+function loadSqliteDatabase(): BetterSqlite3Factory {
+  const require = createRequire(import.meta.url);
+  return require("better-sqlite3") as BetterSqlite3Factory;
 }

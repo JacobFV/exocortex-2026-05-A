@@ -16,6 +16,7 @@
     "validate": "npm run build && npm run test",
     "generate:head-bridge-config": "tsx scripts/generate-head-bridge-config.ts",
     "dev:electron": "npm --workspace @exocortex/electron run dev",
+    "dev:electron:no-sandbox": "npm --workspace @exocortex/electron run dev:no-sandbox",
     "dev:expo": "npm --workspace @exocortex/expo run dev"
   },
   "devDependencies": {

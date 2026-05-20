@@ -1,7 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import type { AgentSessionArtifact, AgentSessionEvent, AgentSessionId } from "@exocortex/protocol";
-import Database from "better-sqlite3";
 import type { Database as SqliteDatabase, Statement } from "better-sqlite3";
 
 export interface AgentSessionStore {
@@ -124,7 +124,7 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
   constructor(dbPath: string, options: SQLiteAgentSessionStoreOptions = {}) {
     if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true });
 
-    this.db = new Database(dbPath);
+    this.db = loadSqliteDatabase()(dbPath);
     this.db.pragma("foreign_keys = ON");
     this.db.pragma("busy_timeout = 5000");
     this.db.pragma("synchronous = NORMAL");
@@ -284,6 +284,13 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
       }
     });
   }
+}
+
+type BetterSqlite3Factory = (path: string) => SqliteDatabase;
+
+function loadSqliteDatabase(): BetterSqlite3Factory {
+  const require = createRequire(import.meta.url);
+  return require("better-sqlite3") as BetterSqlite3Factory;
 }
 
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;

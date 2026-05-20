@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { type GraphObject, acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, assembleGraphContext, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveCalibrationProfiles, listActiveSafetyGrants, listSafetyDenials, recordSafetyDenial, renderGraphContextForPrompt, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
+import { type GraphObject, acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, assembleGraphContext, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, JsonFileEventSourcedGraphStore, listActiveCalibrationProfiles, listActiveSafetyGrants, listSafetyDenials, recordSafetyDenial, renderGraphContextForPrompt, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
 import { type CalibrationProfile, validateCalibrationProfile } from "@exocortex/calibration";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import { MediaRouter, type CapturedMedia } from "@exocortex/media";
@@ -10,13 +10,13 @@ import { ModelRouter } from "@exocortex/models";
 import type { AgentSession, AgentSessionArtifact, AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserProjectionFrame, BrowserSessionId, ModalityBindingPolicy, ModalityInstance } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ActuatorSafetyGate } from "@exocortex/safety";
-import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, FileArtifactBlobStore, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter, SQLiteAgentSessionStore } from "@exocortex/session";
+import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, FileArtifactBlobStore, JsonFileAgentSessionStore, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter, SQLiteAgentSessionStore } from "@exocortex/session";
 import { ElectronBrowserController } from "./electron-browser-controller.js";
 import { renderHtml } from "./renderer-html.js";
 
 const modalityRegistry = new ModalityRegistry();
 const hostModalities = modalityRegistry.createDefaultHostGraph();
-const eventGraphStore = new SQLiteEventSourcedGraphStore(resolveEventGraphDbPath());
+const eventGraphStore = createEventGraphStore();
 const eventGraph = new EventSourcedGraph({ runId: "main", store: eventGraphStore });
 const eventGraphKernel = new EventGraphKernel({
   graph: eventGraph,
@@ -24,7 +24,7 @@ const eventGraphKernel = new EventGraphKernel({
   relationBehaviors: createDefaultContinuityRelationBehaviors()
 });
 const capabilityRegistry = new EventGraphCapabilityRegistry(eventGraph);
-const agentSessionStore = new SQLiteAgentSessionStore(resolveAgentSessionDbPath());
+const agentSessionStore = createAgentSessionStore();
 const artifactBlobStore = new FileArtifactBlobStore(resolveArtifactBlobPath());
 const mediaRouter = new MediaRouter();
 const modelRouter = new ModelRouter();
@@ -351,8 +351,8 @@ app.on("before-quit", () => {
   actionRouter.stop();
   void observationRouter.stopAll();
   eventGraphKernel.close();
-  eventGraphStore.close();
-  agentSessionStore.close();
+  closeIfPresent(eventGraphStore);
+  closeIfPresent(agentSessionStore);
 });
 
 function registryBinding(sessionId: Parameters<AgentSessionManager["listBindings"]>[0], modalityInstanceId: Parameters<ModalityRegistry["bindToSession"]>[0]["modalityInstanceId"]) {
@@ -419,11 +419,48 @@ function publishHostCapabilities(): void {
   }
 }
 
+function createEventGraphStore(): SQLiteEventSourcedGraphStore | JsonFileEventSourcedGraphStore {
+  const mode = electronStoreMode();
+  if (mode === "json") return new JsonFileEventSourcedGraphStore(resolveEventGraphJsonPath());
+  if (mode === "sqlite") return new SQLiteEventSourcedGraphStore(resolveEventGraphDbPath());
+  try {
+    return new SQLiteEventSourcedGraphStore(resolveEventGraphDbPath());
+  } catch (error) {
+    console.warn(`Falling back to JSON continuity store: ${formatErrorMessage(error)}`);
+    return new JsonFileEventSourcedGraphStore(resolveEventGraphJsonPath());
+  }
+}
+
+function createAgentSessionStore(): SQLiteAgentSessionStore | JsonFileAgentSessionStore {
+  const mode = electronStoreMode();
+  if (mode === "json") return new JsonFileAgentSessionStore(resolveAgentSessionJsonPath());
+  if (mode === "sqlite") return new SQLiteAgentSessionStore(resolveAgentSessionDbPath());
+  try {
+    return new SQLiteAgentSessionStore(resolveAgentSessionDbPath());
+  } catch (error) {
+    console.warn(`Falling back to JSON agent session store: ${formatErrorMessage(error)}`);
+    return new JsonFileAgentSessionStore(resolveAgentSessionJsonPath());
+  }
+}
+
+function electronStoreMode(): "auto" | "sqlite" | "json" {
+  const configured = process.env.EXOCORTEX_ELECTRON_STORE;
+  if (configured === "sqlite" || configured === "json") return configured;
+  return "auto";
+}
+
 function resolveEventGraphDbPath(): string {
   const configured = process.env.EXOCORTEX_EVENT_GRAPH_DB;
   const dbPath = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "continuity-events.db");
   mkdirSync(dirname(dbPath), { recursive: true });
   return dbPath;
+}
+
+function resolveEventGraphJsonPath(): string {
+  const configured = process.env.EXOCORTEX_EVENT_GRAPH_JSON_DIR;
+  const dir = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "continuity-events-json");
+  mkdirSync(dir, { recursive: true });
+  return dir;
 }
 
 function resolveAgentSessionDbPath(): string {
@@ -433,9 +470,26 @@ function resolveAgentSessionDbPath(): string {
   return dbPath;
 }
 
+function resolveAgentSessionJsonPath(): string {
+  const configured = process.env.EXOCORTEX_AGENT_SESSION_JSON_DIR;
+  const dir = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "agent-sessions-json");
+  mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
 function resolveArtifactBlobPath(): string {
   const configured = process.env.EXOCORTEX_ARTIFACT_BLOB_DIR;
   return configured && configured.length > 0 ? configured : join(app.getPath("userData"), "artifact-blobs");
+}
+
+function closeIfPresent(value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  const maybeClose = (value as { close?: unknown }).close;
+  if (typeof maybeClose === "function") maybeClose.call(value);
+}
+
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function createMediaArtifact(sessionId: AgentSessionId, kind: "image" | "audio" | "video", captured: CapturedMedia): AgentSessionArtifact {

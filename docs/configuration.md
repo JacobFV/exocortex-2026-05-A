@@ -20,6 +20,8 @@ set +a
 npm run dev:electron
 ```
 
+On Linux hosts where Electron's `chrome-sandbox` helper is not owned by root with mode `4755`, the default Electron command aborts before app startup. For local development in that environment, use `npm run dev:electron:no-sandbox`.
+
 `config/local/` and root `.env*` files are ignored by Git. Keep API keys, serial paths, and machine-local database/blob paths there.
 
 ## Important Keys
@@ -31,7 +33,8 @@ npm run dev:electron
 - `EXOCORTEX_IMAGE_CAPTURE_COMMAND`, `EXOCORTEX_AUDIO_CAPTURE_COMMAND`, and `EXOCORTEX_VIDEO_CAPTURE_COMMAND` register command-backed capture providers.
 - `EXOCORTEX_AUDIO_PLAYBACK_COMMAND` registers command-backed audio playback for host speaker actions.
 - `EXOCORTEX_STT_BRIDGE_ENABLED=1` starts the Electron continuous STT bridge, using configured audio capture and STT providers to feed microphone transcript modalities.
-- `EXOCORTEX_EVENT_GRAPH_DB`, `EXOCORTEX_AGENT_SESSION_DB`, and `EXOCORTEX_ARTIFACT_BLOB_DIR` override durable local storage paths.
+- `EXOCORTEX_ELECTRON_STORE=auto|sqlite|json` controls Electron persistence. `auto` uses SQLite when the native module can load and falls back to JSON file stores when Electron's native ABI is incompatible.
+- `EXOCORTEX_EVENT_GRAPH_DB`, `EXOCORTEX_AGENT_SESSION_DB`, `EXOCORTEX_EVENT_GRAPH_JSON_DIR`, `EXOCORTEX_AGENT_SESSION_JSON_DIR`, and `EXOCORTEX_ARTIFACT_BLOB_DIR` override durable local storage paths.
 
 ## Credential Hygiene
 
