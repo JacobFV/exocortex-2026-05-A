@@ -7,7 +7,7 @@ import { ContinuityKernel } from "./kernel.js";
 import { acceptPatch, ensureMainBranch, proposePatch, rejectPatch } from "./patch.js";
 import { InMemoryContinuityStore } from "./in-memory-store.js";
 import { SQLiteContinuityStore } from "./sqlite-store.js";
-import { createFailureReviewBehavior, createUnsupportedClaimBehavior } from "./behaviors.js";
+import { createCompletedDependencyBehavior, createContradictionReviewBehavior, createFailureReviewBehavior, createHazardousActionApprovalBehavior, createStaleEvidenceBehavior, createUnsupportedClaimBehavior } from "./behaviors.js";
 import { diffBranch, proposeBranchMerge } from "./branching.js";
 import { ContinuityCapabilityRegistry } from "./capabilities.js";
 import { acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, listActiveCalibrationProfiles, listActiveSafetyGrants, listActiveSafetyPolicies } from "./operational-state.js";
@@ -104,6 +104,52 @@ async function runStoreContract(store: ContinuityStore): Promise<void> {
   const claimChange = { branchId: "main", patchId: claimPatch.patch.id, nodeIds: ["node_claim_manual"], edgeIds: [], changedAt: "2026-05-19T00:00:10.000Z" };
   const claimProposals = await createUnsupportedClaimBehavior().evaluate(claimChange, { store, now: new Date("2026-05-19T00:00:11.000Z") });
   assert.equal(claimProposals.length, 1);
+
+  const contradictionPatch = manualContradictionPatch("main");
+  proposePatch(store, contradictionPatch.patch, contradictionPatch.ops);
+  acceptPatch(store, contradictionPatch.patch.id, "test", new Date("2026-05-19T00:00:11.250Z"));
+  const contradictionProposals = await createContradictionReviewBehavior().evaluate(
+    { branchId: "main", patchId: contradictionPatch.patch.id, nodeIds: ["node_claim_contradiction_a"], edgeIds: ["edge_claims_contradict"], changedAt: "2026-05-19T00:00:11.250Z" },
+    { store, now: new Date("2026-05-19T00:00:11.250Z") }
+  );
+  assert.equal(contradictionProposals.length, 1);
+
+  const stalePatch = manualStaleEvidencePatch("main");
+  proposePatch(store, stalePatch.patch, stalePatch.ops);
+  acceptPatch(store, stalePatch.patch.id, "test", new Date("2026-05-19T00:00:11.500Z"));
+  const staleProposals = await createStaleEvidenceBehavior().evaluate(
+    { branchId: "main", patchId: stalePatch.patch.id, nodeIds: ["node_evidence_stale"], edgeIds: [], changedAt: "2026-05-19T00:00:11.500Z" },
+    { store, now: new Date("2026-05-19T00:00:11.500Z") }
+  );
+  assert.equal(staleProposals.length, 1);
+
+  const dependencyPatch = manualDependencyPatch("main");
+  proposePatch(store, dependencyPatch.patch, dependencyPatch.ops);
+  acceptPatch(store, dependencyPatch.patch.id, "test", new Date("2026-05-19T00:00:11.750Z"));
+  const dependencyProposals = await createCompletedDependencyBehavior().evaluate(
+    { branchId: "main", patchId: dependencyPatch.patch.id, nodeIds: ["node_task_dependency_done"], edgeIds: ["edge_task_depends"], changedAt: "2026-05-19T00:00:11.750Z" },
+    { store, now: new Date("2026-05-19T00:00:11.750Z") }
+  );
+  assert.equal(dependencyProposals.length, 1);
+  proposePatch(store, dependencyProposals[0]!.patch, dependencyProposals[0]!.ops);
+  acceptPatch(store, dependencyProposals[0]!.patch.id, "test", new Date("2026-05-19T00:00:11.800Z"));
+  assert.equal(store.getNode("node_task_blocked")?.metadata?.blocked, false);
+
+  const actionEvent = baseEvent(sessionId, 4, {
+    type: "modality.action",
+    bindingId: createId<"AgentSessionModalityId">("bind"),
+    modalityId: createId<"AgentSessionModalityId">("bind"),
+    actionType: "actuator.command",
+    value: { enabled: true, duty: 1 }
+  });
+  kernel.appendEvent(actionEvent, "main", new Date("2026-05-19T00:00:11.900Z"));
+  const actionNode = store.findNodeByStableKey("main", `modality_action:${actionEvent.id}`);
+  assert.ok(actionNode);
+  const hazardousProposals = await createHazardousActionApprovalBehavior().evaluate(
+    { branchId: "main", patchId: "patch_action_change", nodeIds: [actionNode.id], edgeIds: [], changedAt: "2026-05-19T00:00:11.900Z" },
+    { store, now: new Date("2026-05-19T00:00:11.900Z") }
+  );
+  assert.equal(hazardousProposals.length, 1);
 
   const capabilities = new ContinuityCapabilityRegistry(store);
   const registered = capabilities.register({
@@ -267,5 +313,115 @@ function manualClaimPatch(branchId: string): { patch: ContinuityPatch; ops: Cont
         }
       }
     ]
+  };
+}
+
+function manualContradictionPatch(branchId: string): { patch: ContinuityPatch; ops: ContinuityPatchOp[] } {
+  const patch: ContinuityPatch = {
+    id: "patch_claim_contradiction",
+    branchId,
+    status: "proposed",
+    riskLevel: "medium",
+    reason: "manual contradictory claims",
+    createdAt: "2026-05-19T00:00:11.250Z"
+  };
+  return {
+    patch,
+    ops: [
+      nodeOp(patch, "node_claim_contradiction_a", "claim", "claim:contradiction:a", "Claim A", {}),
+      nodeOp(patch, "node_claim_contradiction_b", "claim", "claim:contradiction:b", "Claim B", {}),
+      {
+        id: "op_claims_contradict",
+        patchId: patch.id,
+        op: "create_edge",
+        createdAt: patch.createdAt,
+        payload: {
+          id: "edge_claims_contradict",
+          branchId,
+          fromNodeId: "node_claim_contradiction_a",
+          toNodeId: "node_claim_contradiction_b",
+          kind: "contradicts",
+          status: "active",
+          createdByPatchId: patch.id,
+          createdAt: patch.createdAt,
+          metadata: {}
+        }
+      }
+    ]
+  };
+}
+
+function manualStaleEvidencePatch(branchId: string): { patch: ContinuityPatch; ops: ContinuityPatchOp[] } {
+  const patch: ContinuityPatch = {
+    id: "patch_stale_evidence",
+    branchId,
+    status: "proposed",
+    riskLevel: "low",
+    reason: "manual stale evidence",
+    createdAt: "2026-05-19T00:00:11.500Z"
+  };
+  return { patch, ops: [nodeOp(patch, "node_evidence_stale", "evidence", "evidence:stale", "Stale evidence", { stale: true })] };
+}
+
+function manualDependencyPatch(branchId: string): { patch: ContinuityPatch; ops: ContinuityPatchOp[] } {
+  const patch: ContinuityPatch = {
+    id: "patch_completed_dependency",
+    branchId,
+    status: "proposed",
+    riskLevel: "low",
+    reason: "manual completed dependency",
+    createdAt: "2026-05-19T00:00:11.750Z"
+  };
+  return {
+    patch,
+    ops: [
+      nodeOp(patch, "node_task_dependency_done", "task", "task:dependency_done", "Dependency done", { state: "completed" }),
+      nodeOp(patch, "node_task_blocked", "task", "task:blocked", "Blocked task", { state: "open", blocked: true }),
+      {
+        id: "op_task_depends",
+        patchId: patch.id,
+        op: "create_edge",
+        createdAt: patch.createdAt,
+        payload: {
+          id: "edge_task_depends",
+          branchId,
+          fromNodeId: "node_task_blocked",
+          toNodeId: "node_task_dependency_done",
+          kind: "depends_on",
+          status: "active",
+          createdByPatchId: patch.id,
+          createdAt: patch.createdAt,
+          metadata: {}
+        }
+      }
+    ]
+  };
+}
+
+function nodeOp(patch: ContinuityPatch, id: string, kind: string, stableKey: string, title: string, metadata: Record<string, unknown>): ContinuityPatchOp {
+  return {
+    id: `op_${id}`,
+    patchId: patch.id,
+    op: "create_node",
+    createdAt: patch.createdAt,
+    payload: {
+      id,
+      branchId: patch.branchId,
+      kind,
+      stableKey,
+      status: "active",
+      createdByPatchId: patch.id,
+      createdAt: patch.createdAt,
+      metadata,
+      revision: {
+        id: `rev_${id}`,
+        nodeId: id,
+        patchId: patch.id,
+        version: 1,
+        title,
+        createdAt: patch.createdAt,
+        metadata
+      }
+    }
   };
 }

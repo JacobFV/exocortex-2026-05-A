@@ -108,6 +108,19 @@ export class CoreContinuityProjector implements ContinuityProjector {
         edge(evidence.id, session.id, "produced_by");
         break;
       }
+      case "modality.action": {
+        const action = node(
+          "evidence",
+          `modality_action:${event.id}`,
+          { actionType: event.actionType, bindingId: event.bindingId, valueHash: stableHash(event.value), value: event.value, hazardous: riskForEvent(event) === "high" },
+          `Action ${event.actionType}`
+        );
+        const modality = node("modality", `modality_binding:${event.bindingId}`, { bindingId: event.bindingId });
+        const session = node("session", `session:${event.sessionId}`, { sessionId: event.sessionId });
+        edge(action.id, modality.id, "uses");
+        edge(action.id, session.id, "produced_by");
+        break;
+      }
       case "tool_call.started": {
         const tool = node("tool", `tool:${event.name}`, { name: event.name }, event.name);
         const capabilityNodeId = typeof event.metadata?.capabilityNodeId === "string" ? event.metadata.capabilityNodeId : undefined;

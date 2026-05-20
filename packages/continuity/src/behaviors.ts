@@ -110,6 +110,147 @@ export function createUnsupportedClaimBehavior(options: UnsupportedClaimBehavior
   };
 }
 
+export function createContradictionReviewBehavior(options: UnsupportedClaimBehaviorOptions = {}): ContinuityBehavior {
+  const id = options.id ?? "contradiction-review-behavior";
+  return {
+    id,
+    evaluate(change, context) {
+      const patches: Array<{ patch: ContinuityPatch; ops: ContinuityPatchOp[] }> = [];
+      for (const nodeId of change.nodeIds) {
+        const node = context.store.getNode(nodeId);
+        if (!node || node.kind !== "claim") continue;
+        const contradictions = [
+          ...context.store.listEdges({ branchId: change.branchId, fromNodeId: node.id, kind: "contradicts" }),
+          ...context.store.listEdges({ branchId: change.branchId, toNodeId: node.id, kind: "contradicts" })
+        ].filter((edge) => edge.status === "active");
+        if (!contradictions.length) continue;
+        const taskStableKey = `task:review_contradiction:${node.id}`;
+        if (context.store.findNodeByStableKey(change.branchId, taskStableKey)) continue;
+        patches.push(makeTaskPatch(context.store, change, id, node.id, taskStableKey, "Review contradictory claims", options.taskPriority ?? 70));
+      }
+      return patches;
+    }
+  };
+}
+
+export function createStaleEvidenceBehavior(options: UnsupportedClaimBehaviorOptions = {}): ContinuityBehavior {
+  const id = options.id ?? "stale-evidence-behavior";
+  return {
+    id,
+    evaluate(change, context) {
+      const patches: Array<{ patch: ContinuityPatch; ops: ContinuityPatchOp[] }> = [];
+      for (const nodeId of change.nodeIds) {
+        const node = context.store.getNode(nodeId);
+        if (!node || node.kind !== "evidence") continue;
+        const validUntil = typeof node.metadata?.validUntil === "string" ? Date.parse(node.metadata.validUntil) : Number.NaN;
+        const stale = node.status === "stale" || node.metadata?.stale === true || (!Number.isNaN(validUntil) && validUntil <= context.now.getTime());
+        if (!stale) continue;
+        const taskStableKey = `task:refresh_evidence:${node.id}`;
+        if (context.store.findNodeByStableKey(change.branchId, taskStableKey)) continue;
+        patches.push(makeTaskPatch(context.store, change, id, node.id, taskStableKey, "Refresh stale evidence", options.taskPriority ?? 55));
+      }
+      return patches;
+    }
+  };
+}
+
+export function createHazardousActionApprovalBehavior(options: UnsupportedClaimBehaviorOptions = {}): ContinuityBehavior {
+  const id = options.id ?? "hazardous-action-approval-behavior";
+  return {
+    id,
+    evaluate(change, context) {
+      const patches: Array<{ patch: ContinuityPatch; ops: ContinuityPatchOp[] }> = [];
+      for (const nodeId of change.nodeIds) {
+        const node = context.store.getNode(nodeId);
+        if (!node || node.kind !== "evidence") continue;
+        const actionType = String(node.metadata?.actionType ?? "");
+        const value = node.metadata?.value;
+        const enabled = value && typeof value === "object" && !Array.isArray(value) && (value as { enabled?: unknown }).enabled === true;
+        const hazardous = node.metadata?.hazardous === true || (actionType.includes("actuator") && enabled);
+        if (!hazardous) continue;
+        const taskStableKey = `task:approve_hazardous_action:${node.id}`;
+        if (context.store.findNodeByStableKey(change.branchId, taskStableKey)) continue;
+        patches.push(makeTaskPatch(context.store, change, id, node.id, taskStableKey, "Approve hazardous action", options.taskPriority ?? 90));
+      }
+      return patches;
+    }
+  };
+}
+
+export function createCompletedDependencyBehavior(): ContinuityBehavior {
+  const id = "completed-dependency-behavior";
+  return {
+    id,
+    evaluate(change, context) {
+      const patches: Array<{ patch: ContinuityPatch; ops: ContinuityPatchOp[] }> = [];
+      for (const nodeId of change.nodeIds) {
+        const node = context.store.getNode(nodeId);
+        if (!node || node.kind !== "task" || node.metadata?.state !== "completed") continue;
+        const dependentEdges = context.store.listEdges({ branchId: change.branchId, toNodeId: node.id, kind: "depends_on" }).filter((edge) => edge.status === "active");
+        for (const edge of dependentEdges) {
+          const dependent = context.store.getNode(edge.fromNodeId);
+          if (!dependent || dependent.kind !== "task" || dependent.metadata?.blocked !== true) continue;
+          const patchId = continuityId("patch", change.branchId, id, dependent.id, node.id);
+          const now = context.now.toISOString();
+          const revisionId = continuityId("rev", patchId, dependent.stableKey, "unblocked");
+          const unblocksEdgeId = continuityId("edge", change.branchId, node.id, "unblocks", dependent.id);
+          patches.push({
+            patch: {
+              id: patchId,
+              branchId: change.branchId,
+              status: "proposed",
+              riskLevel: "low",
+              reason: `Unblock task ${dependent.stableKey}`,
+              createdAt: now,
+              metadata: { behaviorId: id, sourcePatchId: change.patchId, sourceNodeId: node.id, targetNodeId: dependent.id }
+            },
+            ops: [
+              {
+                id: continuityId("op", patchId, "unblock_task"),
+                patchId,
+                op: "update_node",
+                targetNodeId: dependent.id,
+                createdAt: now,
+                payload: {
+                  ...dependent,
+                  metadata: { ...dependent.metadata, blocked: false, unblockedByNodeId: node.id },
+                  revision: {
+                    id: revisionId,
+                    nodeId: dependent.id,
+                    patchId,
+                    version: 2,
+                    title: "Task unblocked",
+                    createdAt: now,
+                    metadata: { ...dependent.metadata, blocked: false, unblockedByNodeId: node.id }
+                  }
+                }
+              },
+              {
+                id: continuityId("op", patchId, "unblocks_edge"),
+                patchId,
+                op: "create_edge",
+                createdAt: now,
+                payload: {
+                  id: unblocksEdgeId,
+                  branchId: change.branchId,
+                  fromNodeId: node.id,
+                  toNodeId: dependent.id,
+                  kind: "unblocks",
+                  status: "active",
+                  createdByPatchId: patchId,
+                  createdAt: now,
+                  metadata: { behaviorId: id }
+                }
+              }
+            ]
+          });
+        }
+      }
+      return patches;
+    }
+  };
+}
+
 function makeTaskPatch(
   _store: ContinuityStore,
   change: ContinuityGraphChange,
