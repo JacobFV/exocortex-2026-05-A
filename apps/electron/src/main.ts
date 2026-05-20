@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { acceptSafetyGrant, acceptSafetyPolicy, ContinuityCapabilityRegistry, ContinuityKernel, listActiveSafetyGrants, MAIN_BRANCH_ID, SQLiteContinuityStore } from "@exocortex/continuity";
+import { acceptSafetyGrant, acceptSafetyPolicy, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveSafetyGrants, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
@@ -12,9 +12,10 @@ import { ElectronBrowserController } from "./electron-browser-controller.js";
 
 const modalityRegistry = new ModalityRegistry();
 const hostModalities = modalityRegistry.createDefaultHostGraph();
-const continuityStore = new SQLiteContinuityStore(resolveContinuityDbPath());
-const continuityKernel = new ContinuityKernel({ store: continuityStore });
-const capabilityRegistry = new ContinuityCapabilityRegistry(continuityStore);
+const eventGraphStore = new SQLiteEventSourcedGraphStore(resolveEventGraphDbPath());
+const eventGraph = new EventSourcedGraph({ runId: "main", store: eventGraphStore });
+const eventGraphKernel = new EventGraphKernel({ graph: eventGraph });
+const capabilityRegistry = new EventGraphCapabilityRegistry(eventGraph);
 const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 const toolRouter = new AgentToolRouter(
   createBrowserAgentTools({
@@ -23,7 +24,7 @@ const toolRouter = new AgentToolRouter(
     defaultSessionId: () => browserSessionManager.list()[0]?.id
   })
 );
-const sessionManager = new AgentSessionManager({ runtime: new ModelDrivenAgentRuntime({ tools: toolRouter, capabilities: capabilityRegistry }), continuityKernel });
+const sessionManager = new AgentSessionManager({ runtime: new ModelDrivenAgentRuntime({ tools: toolRouter, capabilities: capabilityRegistry }), eventGraphKernel });
 const observationRouter = new ModalityObservationRouter(sessionManager);
 const actionRouter = new ModalityActionRouter(sessionManager);
 
@@ -35,16 +36,15 @@ const headBridgeModalities = modalityRegistry.createHeadBridgeGraph(defaultHeadB
 const headBridgeConfig = defaultHeadBridgeConfig();
 const actuatorSafetyGate = ActuatorSafetyGate.fromHeadBridgeConfig(headBridgeConfig, {
   listActiveGrants: (channel, now) =>
-    listActiveSafetyGrants(continuityStore, MAIN_BRANCH_ID, channel, now).map((node) => ({
+    listActiveSafetyGrants(eventGraph, channel, now).map((object) => ({
       channel,
-      reason: typeof node.metadata?.reason === "string" ? node.metadata.reason : "continuity safety grant",
-      armedAt: node.createdAt,
-      expiresAt: typeof node.metadata?.expiresAt === "string" ? node.metadata.expiresAt : node.createdAt
+      reason: typeof object.data.reason === "string" ? object.data.reason : "continuity safety grant",
+      armedAt: object.provenance.createdAt,
+      expiresAt: typeof object.data.expiresAt === "string" ? object.data.expiresAt : object.provenance.createdAt
     }))
 });
 for (const policy of actuatorSafetyGate.listPolicies()) {
-  acceptSafetyPolicy(continuityStore, {
-    branchId: MAIN_BRANCH_ID,
+  acceptSafetyPolicy(eventGraph, {
     channel: policy.channel,
     policy: { ...policy },
     active: true
@@ -122,17 +122,16 @@ ipcMain.handle("exocortex:list-modalities", () => ({
   devices: modalityRegistry.listDeviceInstances(),
   modalities: modalityRegistry.listModalityInstances()
 }));
-ipcMain.handle("exocortex:list-continuity-nodes", (_event, branchId: string = MAIN_BRANCH_ID) => continuityStore.listNodes(branchId));
-ipcMain.handle("exocortex:list-continuity-edges", (_event, branchId: string = MAIN_BRANCH_ID) => continuityStore.listEdges({ branchId }));
-ipcMain.handle("exocortex:list-continuity-patches", (_event, branchId: string = MAIN_BRANCH_ID) => continuityStore.listPatches(branchId));
+ipcMain.handle("exocortex:list-continuity-nodes", () => eventGraphKernel.listObjects());
+ipcMain.handle("exocortex:list-continuity-edges", () => eventGraphKernel.listRelations());
+ipcMain.handle("exocortex:list-continuity-patches", () => eventGraph.snapshot().events);
 ipcMain.handle("exocortex:inject-app-text", (_event, text: string) => appTextBridge.injectText(text));
 ipcMain.handle("exocortex:send-modality-action", (_event, sessionId: AgentSessionId, bindingId: AgentSessionModalityId, actionType: string, value: unknown) =>
   sessionManager.act(sessionId, bindingId, actionType, value)
 );
 ipcMain.handle("exocortex:arm-actuator", (_event, channel: string, reason: string) => {
   const grant = actuatorSafetyGate.arm(channel, reason || "operator requested");
-  acceptSafetyGrant(continuityStore, {
-    branchId: MAIN_BRANCH_ID,
+  acceptSafetyGrant(eventGraph, {
     grantId: `${grant.channel}:${grant.armedAt}`,
     channel: grant.channel,
     approvedBy: "electron-operator",
@@ -189,7 +188,8 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   actionRouter.stop();
   void observationRouter.stopAll();
-  continuityStore.close();
+  eventGraphKernel.close();
+  eventGraphStore.close();
 });
 
 function registryBinding(sessionId: Parameters<AgentSessionManager["listBindings"]>[0], modalityInstanceId: Parameters<ModalityRegistry["bindToSession"]>[0]["modalityInstanceId"]) {
@@ -204,7 +204,6 @@ function normalizeRecord(value: unknown): Record<string, unknown> {
 function publishHostCapabilities(): void {
   for (const tool of toolRouter.definitions()) {
     capabilityRegistry.register({
-      branchId: MAIN_BRANCH_ID,
       kind: "tool",
       key: tool.name,
       provider: "@exocortex/electron",
@@ -214,7 +213,6 @@ function publishHostCapabilities(): void {
   }
   for (const modality of modalityRegistry.listModalityInstances()) {
     capabilityRegistry.register({
-      branchId: MAIN_BRANCH_ID,
       kind: "modality",
       key: modality.key,
       provider: modality.source,
@@ -224,7 +222,6 @@ function publishHostCapabilities(): void {
   }
   for (const device of modalityRegistry.listDeviceInstances()) {
     capabilityRegistry.register({
-      branchId: MAIN_BRANCH_ID,
       kind: "device",
       key: device.key,
       provider: device.transport,
@@ -233,7 +230,6 @@ function publishHostCapabilities(): void {
     });
   }
   capabilityRegistry.register({
-    branchId: MAIN_BRANCH_ID,
     kind: "model",
     key: process.env.EXOCORTEX_MODEL ?? "local-rules",
     provider: process.env.EXOCORTEX_MODEL_PROVIDER ?? "local",
@@ -242,9 +238,9 @@ function publishHostCapabilities(): void {
   });
 }
 
-function resolveContinuityDbPath(): string {
-  const configured = process.env.EXOCORTEX_CONTINUITY_DB;
-  const dbPath = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "continuity.db");
+function resolveEventGraphDbPath(): string {
+  const configured = process.env.EXOCORTEX_EVENT_GRAPH_DB;
+  const dbPath = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "continuity-events.db");
   mkdirSync(dirname(dbPath), { recursive: true });
   return dbPath;
 }

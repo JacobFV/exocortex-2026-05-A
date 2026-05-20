@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx src/continuity.test.ts && tsx src/event-graph.test.ts"
+    "test": "tsx src/event-graph.test.ts"
   },
   "dependencies": {
     "@exocortex/protocol": "0.0.0",

@@ -1,3 +1,5 @@
+export const MAIN_RUN_ID = "main";
+
 export interface ContinuityEvent {
   id: string;
   runId: string;

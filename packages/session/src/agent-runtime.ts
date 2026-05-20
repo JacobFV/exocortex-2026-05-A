@@ -1,4 +1,4 @@
-import { stableHash, type ContinuityCapabilityRegistry } from "@exocortex/continuity";
+import { stableHash, type EventGraphCapabilityRegistry } from "@exocortex/continuity";
 import { createId, type AgentSession, type AgentSessionEvent, type AgentSessionEventPayload } from "@exocortex/protocol";
 import { ModelRouter, type ChatMessage, type ChatStreamEvent, type ToolCall, type ToolDefinition } from "@exocortex/models";
 import { AgentToolRouter } from "./tool-router.js";
@@ -20,7 +20,7 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
   readonly runtimeId = "model-driven-agent-runtime";
   private readonly histories = new Map<string, ChatMessage[]>();
 
-  constructor(private readonly options: { models?: ModelRouter; tools?: AgentToolRouter; capabilities?: ContinuityCapabilityRegistry; maxToolRounds?: number } = {}) {}
+  constructor(private readonly options: { models?: ModelRouter; tools?: AgentToolRouter; capabilities?: EventGraphCapabilityRegistry; maxToolRounds?: number } = {}) {}
 
   async start(context: AgentRuntimeContext): Promise<void> {
     this.histories.set(context.session.id, [
@@ -103,10 +103,10 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
   private async executeToolCall(context: AgentRuntimeContext, call: ToolCall, modalityId: AgentSessionEvent["modalityId"]): Promise<unknown | undefined> {
     const toolCallId = createId<"ToolCallId">("tool");
     const capability = this.toolCapability(context.session, call.name);
-    const metadata = { ...this.modelTurnLineage(context.session), capabilityNodeId: capability?.id, capabilityHash: capability?.metadata?.capabilityHash };
+    const metadata = { ...this.modelTurnLineage(context.session), capabilityObjectId: capability?.id, capabilityHash: capability?.data.capabilityHash };
     context.emit({ type: "tool_call.started", toolCallId, name: call.name, input: call.arguments, modalityId, metadata });
     try {
-      if (this.options.capabilities && !capability) throw new Error(`Tool capability is not enabled for ${call.name}`);
+      if (this.options.capabilities && (!capability || capability.data.enabled !== true)) throw new Error(`Tool capability is not enabled for ${call.name}`);
       const result = await this.tools.execute(call, context);
       for (const event of result.emittedEvents ?? []) context.emit({ ...event, modalityId: event.modalityId ?? modalityId });
       context.emit({ type: "tool_call.completed", toolCallId, output: result.output, modalityId, metadata });
@@ -133,12 +133,12 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
   private toolDefinitionsForSession(session: AgentSession): ToolDefinition[] {
     const definitions = this.tools.definitions();
     if (!this.options.capabilities) return definitions;
-    const enabledToolKeys = new Set(this.options.capabilities.listEnabled(session.branchId, "tool").map((node) => String(node.metadata?.key ?? "")));
+    const enabledToolKeys = new Set(this.options.capabilities.listEnabled("tool").map((object) => String(object.data.key ?? "")));
     return definitions.filter((definition) => enabledToolKeys.has(definition.name));
   }
 
   private toolCapability(session: AgentSession, name: string) {
-    return this.options.capabilities?.listEnabled(session.branchId, "tool").find((node) => node.metadata?.key === name);
+    return this.options.capabilities?.findCapability("tool", name);
   }
 
   private modelTurnLineage(session: AgentSession): Record<string, unknown> {
@@ -147,16 +147,16 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
       runtimeId: this.runtimeId,
       promptHash: stableHash(systemPrompt(session)),
       policyHash: this.policyHash(session),
-      capabilitySetHash: this.options.capabilities?.capabilitySetHash(session.branchId)
+      capabilitySetHash: this.options.capabilities?.capabilitySetHash()
     };
   }
 
   private policyHash(session: AgentSession): string | undefined {
     if (!this.options.capabilities) return undefined;
     return stableHash(
-      this.options.capabilities.listEnabled(session.branchId, "policy").map((node) => ({
-        stableKey: node.stableKey,
-        hash: node.metadata?.capabilityHash
+      this.options.capabilities.listEnabled("policy").map((object) => ({
+        stableKey: object.data.stableKey,
+        hash: object.data.capabilityHash
       }))
     );
   }

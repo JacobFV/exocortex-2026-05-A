@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { BrowserSessionManager, type BrowserController } from "@exocortex/browser-session";
-import { ContinuityCapabilityRegistry, ContinuityKernel, InMemoryContinuityStore } from "@exocortex/continuity";
+import { EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, InMemoryEventSourcedGraphStore } from "@exocortex/continuity";
 import type { ChatModel, ChatRequest, ChatStreamEvent } from "@exocortex/models";
 import { ModalityRegistry } from "@exocortex/peripherals";
 import { ModelRouter } from "@exocortex/models";
@@ -131,10 +131,9 @@ class CapabilityAwareModel implements ChatModel {
   }
 }
 
-const capabilityStore = new InMemoryContinuityStore();
-const capabilityRegistry = new ContinuityCapabilityRegistry(capabilityStore);
+const capabilityGraph = new EventSourcedGraph({ runId: "capability_test", store: new InMemoryEventSourcedGraphStore() });
+const capabilityRegistry = new EventGraphCapabilityRegistry(capabilityGraph);
 capabilityRegistry.register({
-  branchId: "main",
   kind: "tool",
   key: "record_context",
   provider: "@exocortex/session",
@@ -157,7 +156,7 @@ assert.deepEqual(capabilityModel.seenToolNames[0], ["record_context"]);
 assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.completed"));
 assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.started" && event.metadata?.capabilitySetHash));
 assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.started" && event.metadata?.promptHash && event.metadata?.policyHash));
-capabilityRegistry.setEnabled("main", "tool", "record_context", false);
+capabilityRegistry.setEnabled("tool", "record_context", false);
 capabilityManager.observe(capabilitySession.id, capabilityBinding.id, "text.final", { text: "tool blocked" });
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.deepEqual(capabilityModel.seenToolNames[1], []);
@@ -214,13 +213,14 @@ const navigate = await browserTools.find((tool) => tool.definition.name === "bro
 assert.deepEqual(browserActions[0], { type: "navigate", url: "https://example.com" });
 assert.equal((navigate.output as { frame?: { width?: number } }).frame?.width, 800);
 
-const continuityStore = new InMemoryContinuityStore();
-const continuityKernel = new ContinuityKernel({ store: continuityStore });
-const continuityManager = new AgentSessionManager({ continuityKernel });
+const continuityGraph = new EventSourcedGraph({ runId: "session_projection", store: new InMemoryEventSourcedGraphStore() });
+const eventGraphKernel = new EventGraphKernel({ graph: continuityGraph });
+const continuityManager = new AgentSessionManager({ eventGraphKernel });
 const continuitySession = continuityManager.create({ goal: "Project into graph", branchId: "main" });
-assert.ok(continuityStore.findNodeByStableKey("main", `session:${continuitySession.id}`));
-assert.ok(continuityStore.findNodeByStableKey("main", `goal:${continuitySession.id}:primary`));
+assert.ok(continuityGraph.findObjects({ type: "agent_session", where: { sessionId: continuitySession.id } }).length);
+assert.ok(continuityGraph.findObjects({ type: "goal", where: { sessionId: continuitySession.id } }).length);
 const continuityBinding = registry.bindToSession({ sessionId: continuitySession.id, modalityInstanceId: modalityInstances[0]!.id });
 continuityManager.bindModality(continuitySession.id, continuityBinding);
 continuityManager.observe(continuitySession.id, continuityBinding.id, "text.final", { text: "continuity evidence" });
-assert.ok(continuityStore.listNodes("main").some((node) => node.kind === "evidence"));
+assert.ok(continuityGraph.findObjects({ type: "evidence" }).some((node) => node.data.valueHash));
+eventGraphKernel.close();
