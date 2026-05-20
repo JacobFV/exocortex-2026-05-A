@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { BrowserSessionManager, type BrowserController } from "@exocortex/browser-session";
-import { ContinuityKernel, InMemoryContinuityStore } from "@exocortex/continuity";
+import { ContinuityCapabilityRegistry, ContinuityKernel, InMemoryContinuityStore } from "@exocortex/continuity";
 import type { ChatModel, ChatRequest, ChatStreamEvent } from "@exocortex/models";
 import { ModalityRegistry } from "@exocortex/peripherals";
 import { ModelRouter } from "@exocortex/models";
@@ -117,6 +117,51 @@ await new Promise((resolve) => setTimeout(resolve, 0));
 assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "tool_call.completed" && (event.output as { recorded?: unknown }).recorded === "browser"));
 assert.ok(toolSessionManager.events(toolSession.id).some((event) => event.type === "message.completed" && event.text === "Tool result incorporated."));
 toolSessionManager.stop(toolSession.id);
+
+class CapabilityAwareModel implements ChatModel {
+  readonly id = "capability-model";
+  readonly provider = "local_rules";
+  seenToolNames: string[][] = [];
+
+  async *stream(request: ChatRequest): AsyncIterable<ChatStreamEvent> {
+    const names = request.tools?.map((tool) => tool.name) ?? [];
+    this.seenToolNames.push(names);
+    yield { type: "tool_call", toolCall: { id: `capability_call_${this.seenToolNames.length}`, name: "record_context", arguments: { value: "capability" } } };
+    yield { type: "done" };
+  }
+}
+
+const capabilityStore = new InMemoryContinuityStore();
+const capabilityRegistry = new ContinuityCapabilityRegistry(capabilityStore);
+capabilityRegistry.register({
+  branchId: "main",
+  kind: "tool",
+  key: "record_context",
+  provider: "@exocortex/session",
+  definition: toolRouter.definitions()[0]
+});
+const capabilityModel = new CapabilityAwareModel();
+const capabilityModelRouter = new ModelRouter([{ id: "local", provider: "local_rules" }]);
+capabilityModelRouter.register(capabilityModel);
+capabilityModelRouter.setDefault("capability-model");
+const capabilityManager = new AgentSessionManager({
+  runtime: new ModelDrivenAgentRuntime({ models: capabilityModelRouter, tools: toolRouter, capabilities: capabilityRegistry, maxToolRounds: 1 })
+});
+const capabilitySession = capabilityManager.create({ goal: "Filter tools", runtime: { provider: "local", model: "capability-model", driver: "model-driven-agent-runtime" } });
+const capabilityBinding = registry.bindToSession({ sessionId: capabilitySession.id, modalityInstanceId: modalityInstances[0]!.id });
+capabilityManager.bindModality(capabilitySession.id, capabilityBinding);
+await capabilityManager.start(capabilitySession.id);
+capabilityManager.observe(capabilitySession.id, capabilityBinding.id, "text.final", { text: "tool allowed" });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.deepEqual(capabilityModel.seenToolNames[0], ["record_context"]);
+assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.completed"));
+assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.started" && event.metadata?.capabilitySetHash));
+capabilityRegistry.setEnabled("main", "tool", "record_context", false);
+capabilityManager.observe(capabilitySession.id, capabilityBinding.id, "text.final", { text: "tool blocked" });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.deepEqual(capabilityModel.seenToolNames[1], []);
+assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.failed" && event.message.includes("not enabled")));
+capabilityManager.stop(capabilitySession.id);
 
 const browserActions: unknown[] = [];
 const browserController: BrowserController = {

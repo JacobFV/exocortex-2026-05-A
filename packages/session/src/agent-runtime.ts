@@ -1,5 +1,6 @@
+import { type ContinuityCapabilityRegistry } from "@exocortex/continuity";
 import { createId, type AgentSession, type AgentSessionEvent, type AgentSessionEventPayload } from "@exocortex/protocol";
-import { ModelRouter, type ChatMessage, type ChatStreamEvent, type ToolCall } from "@exocortex/models";
+import { ModelRouter, type ChatMessage, type ChatStreamEvent, type ToolCall, type ToolDefinition } from "@exocortex/models";
 import { AgentToolRouter } from "./tool-router.js";
 
 export interface AgentRuntimeContext {
@@ -19,7 +20,7 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
   readonly runtimeId = "model-driven-agent-runtime";
   private readonly histories = new Map<string, ChatMessage[]>();
 
-  constructor(private readonly options: { models?: ModelRouter; tools?: AgentToolRouter; maxToolRounds?: number } = {}) {}
+  constructor(private readonly options: { models?: ModelRouter; tools?: AgentToolRouter; capabilities?: ContinuityCapabilityRegistry; maxToolRounds?: number } = {}) {}
 
   async start(context: AgentRuntimeContext): Promise<void> {
     this.histories.set(context.session.id, [
@@ -83,32 +84,36 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
   ): Promise<{ assistantText: string; toolOutputs: Array<{ toolCallId: string; name: string; output: unknown }> }> {
     let assistantText = "";
     const toolOutputs: Array<{ toolCallId: string; name: string; output: unknown }> = [];
-    for await (const event of this.models.get(this.selectedModelId(context.session)).stream({ messages: history, tools: this.tools.definitions(), signal: context.signal })) {
+    const lineage = this.modelTurnLineage(context.session);
+    for await (const event of this.models.get(this.selectedModelId(context.session)).stream({ messages: history, tools: this.toolDefinitionsForSession(context.session), signal: context.signal })) {
       if (event.type === "text_delta") {
         assistantText += event.text;
-        context.emit({ type: "message.delta", role: "assistant", text: event.text, modalityId });
+        context.emit({ type: "message.delta", role: "assistant", text: event.text, modalityId, metadata: lineage });
       } else if (event.type === "tool_call") {
         const output = await this.executeToolCall(context, event.toolCall, modalityId);
         if (output !== undefined) toolOutputs.push({ toolCallId: event.toolCall.id, name: event.toolCall.name, output });
       }
     }
     if (assistantText) {
-      context.emit({ type: "message.completed", role: "assistant", text: assistantText, modalityId });
+      context.emit({ type: "message.completed", role: "assistant", text: assistantText, modalityId, metadata: lineage });
     }
     return { assistantText, toolOutputs };
   }
 
   private async executeToolCall(context: AgentRuntimeContext, call: ToolCall, modalityId: AgentSessionEvent["modalityId"]): Promise<unknown | undefined> {
     const toolCallId = createId<"ToolCallId">("tool");
-    context.emit({ type: "tool_call.started", toolCallId, name: call.name, input: call.arguments, modalityId });
+    const capability = this.toolCapability(context.session, call.name);
+    const metadata = { ...this.modelTurnLineage(context.session), capabilityNodeId: capability?.id, capabilityHash: capability?.metadata?.capabilityHash };
+    context.emit({ type: "tool_call.started", toolCallId, name: call.name, input: call.arguments, modalityId, metadata });
     try {
+      if (this.options.capabilities && !capability) throw new Error(`Tool capability is not enabled for ${call.name}`);
       const result = await this.tools.execute(call, context);
       for (const event of result.emittedEvents ?? []) context.emit({ ...event, modalityId: event.modalityId ?? modalityId });
-      context.emit({ type: "tool_call.completed", toolCallId, output: result.output, modalityId });
+      context.emit({ type: "tool_call.completed", toolCallId, output: result.output, modalityId, metadata });
       return result.output;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      context.emit({ type: "tool_call.failed", toolCallId, code: "tool_execution_failed", message, modalityId });
+      context.emit({ type: "tool_call.failed", toolCallId, code: "tool_execution_failed", message, modalityId, metadata });
       return undefined;
     }
   }
@@ -123,6 +128,25 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
 
   private get maxToolRounds(): number {
     return this.options.maxToolRounds ?? 4;
+  }
+
+  private toolDefinitionsForSession(session: AgentSession): ToolDefinition[] {
+    const definitions = this.tools.definitions();
+    if (!this.options.capabilities) return definitions;
+    const enabledToolKeys = new Set(this.options.capabilities.listEnabled(session.branchId, "tool").map((node) => String(node.metadata?.key ?? "")));
+    return definitions.filter((definition) => enabledToolKeys.has(definition.name));
+  }
+
+  private toolCapability(session: AgentSession, name: string) {
+    return this.options.capabilities?.listEnabled(session.branchId, "tool").find((node) => node.metadata?.key === name);
+  }
+
+  private modelTurnLineage(session: AgentSession): Record<string, unknown> {
+    return {
+      modelId: this.selectedModelId(session),
+      runtimeId: this.runtimeId,
+      capabilitySetHash: this.options.capabilities?.capabilitySetHash(session.branchId)
+    };
   }
 
   private selectedModelId(session: AgentSession): string {

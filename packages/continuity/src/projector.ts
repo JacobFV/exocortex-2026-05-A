@@ -110,8 +110,10 @@ export class CoreContinuityProjector implements ContinuityProjector {
       }
       case "tool_call.started": {
         const tool = node("tool", `tool:${event.name}`, { name: event.name }, event.name);
-        const toolUse = node("evidence", `tool_use:${event.toolCallId}`, { toolCallId: event.toolCallId, input: event.input }, `Tool call ${event.name}`);
+        const capabilityNodeId = typeof event.metadata?.capabilityNodeId === "string" ? event.metadata.capabilityNodeId : undefined;
+        const toolUse = node("evidence", `tool_use:${event.toolCallId}`, { toolCallId: event.toolCallId, input: event.input, capabilityNodeId }, `Tool call ${event.name}`);
         edge(toolUse.id, tool.id, "uses");
+        if (capabilityNodeId) edge(toolUse.id, capabilityNodeId, "uses");
         break;
       }
       case "tool_call.completed": {
