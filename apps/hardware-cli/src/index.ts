@@ -20,6 +20,7 @@ export type HardwareCliCommand =
   | { name: "listen"; port: string; baudRate: number }
   | { name: "inspect"; port: string; baudRate: number; durationMs: number }
   | { name: "ping"; port: string; baudRate: number; durationMs: number }
+  | { name: "bench-smoke"; port: string; baudRate: number; durationMs: number; actuatorChannel?: string }
   | { name: "actuate"; port: string; baudRate: number; channel: string; value: Record<string, unknown>; durationMs: number };
 
 export function parseHardwareCliArgs(argv: string[]): HardwareCliCommand {
@@ -67,6 +68,14 @@ export function parseHardwareCliArgs(argv: string[]): HardwareCliCommand {
         port: required(options, "port"),
         baudRate: numberOption(options, "baud", defaultHeadBridgeConfig().baudRate),
         durationMs: numberOption(options, "duration-ms", 1000)
+      };
+    case "bench-smoke":
+      return {
+        name: "bench-smoke",
+        port: required(options, "port"),
+        baudRate: numberOption(options, "baud", defaultHeadBridgeConfig().baudRate),
+        durationMs: numberOption(options, "duration-ms", 3000),
+        actuatorChannel: options["actuator-channel"]
       };
     case "actuate": {
       const config = defaultHeadBridgeConfig();
@@ -152,6 +161,20 @@ export async function runHardwareCli(command: HardwareCliCommand, writeLine: (li
     if (command.name === "inspect" || command.name === "ping") {
       await transport.write(systemPingFrame());
       await delay(command.durationMs);
+      return;
+    }
+    if (command.name === "bench-smoke") {
+      await transport.write(systemPingFrame());
+      if (command.actuatorChannel) {
+        await transport.write({
+          channel: command.actuatorChannel,
+          type: "actuator.command",
+          timestamp: new Date().toISOString(),
+          value: { enabled: false, duty: 0 }
+        });
+      }
+      await delay(command.durationMs);
+      writeLine(JSON.stringify({ status: "bench_smoke_complete", health: transport.health() }));
       return;
     }
     await transport.write({
@@ -264,6 +287,7 @@ function usage(command?: string): string {
   exocortex-hardware listen --port /dev/cu.usbserial --baud 115200
   exocortex-hardware inspect --port /dev/cu.usbserial --duration-ms 2000
   exocortex-hardware ping --port /dev/cu.usbserial
+  exocortex-hardware bench-smoke --port /dev/cu.usbserial --duration-ms 3000 --actuator-channel headlamp_pwm
   exocortex-hardware actuate --port /dev/cu.usbserial --channel headlamp_pwm --enabled true --duty 0.25`;
 }
 

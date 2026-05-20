@@ -34,6 +34,14 @@ assert.deepEqual(parseHardwareCliArgs(["inspect", "--port", "/dev/cu.usbserial",
   durationMs: 250
 });
 
+assert.deepEqual(parseHardwareCliArgs(["bench-smoke", "--port", "/dev/cu.usbserial", "--duration-ms", "250", "--actuator-channel", "headlamp_pwm"]), {
+  name: "bench-smoke",
+  port: "/dev/cu.usbserial",
+  baudRate: 115200,
+  durationMs: 250,
+  actuatorChannel: "headlamp_pwm"
+});
+
 assert.deepEqual(parseHardwareCliArgs(["actuate", "--port", "/dev/cu.usbserial", "--channel", "headlamp_pwm", "--enabled", "true", "--duty", "0.25"]), {
   name: "actuate",
   port: "/dev/cu.usbserial",
