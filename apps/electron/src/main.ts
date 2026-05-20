@@ -7,7 +7,7 @@ import { type CalibrationProfile, validateCalibrationProfile } from "@exocortex/
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import { MediaRouter, type CapturedMedia } from "@exocortex/media";
 import { ModelRouter } from "@exocortex/models";
-import type { AgentSessionArtifact, AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId, ModalityBindingPolicy } from "@exocortex/protocol";
+import type { AgentSession, AgentSessionArtifact, AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserProjectionFrame, BrowserSessionId, ModalityBindingPolicy, ModalityInstance } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ActuatorSafetyGate } from "@exocortex/safety";
 import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, FileArtifactBlobStore, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter, SQLiteAgentSessionStore } from "@exocortex/session";
@@ -84,6 +84,7 @@ browserSessionManager.subscribe((event) => {
 const appTextModality = modalityRegistry.getModalityByKey("app_input_text") ?? hostModalities[0];
 const appTextBridge = new ManualInputBridge(appTextModality);
 observationRouter.attachBridge(appTextBridge);
+const sttTextBridges = attachSttTextBridges();
 
 const headBridgeModalities = modalityRegistry.createHeadBridgeGraph(defaultHeadBridgeConfig());
 const headBridgeConfig = defaultHeadBridgeConfig();
@@ -141,6 +142,7 @@ actionRouter.start();
 void observationRouter.startAll().catch((error) => {
   console.error("Failed to start modality bridges", error);
 });
+const sttPollingBridge = startContinuousSttBridge(sttTextBridges);
 
 async function createMainWindow(): Promise<void> {
   const win = new BrowserWindow({
@@ -281,6 +283,7 @@ ipcMain.handle("exocortex:create-browser-session", async (_event, sessionId?: Ag
   if (sessionId) sessionManager.recordBrowserCreated(sessionId, browser.id);
   const frame = await browserSessionManager.captureFrame(browser.id);
   if (sessionId && frame) sessionManager.recordBrowserProjectionFrame(sessionId, frame);
+  if (sessionId && frame) createBrowserFrameArtifact(sessionId, frame);
   return frame;
 });
 ipcMain.handle("exocortex:list-browser-sessions", () => browserSessionManager.list());
@@ -288,11 +291,13 @@ ipcMain.handle("exocortex:browser-dispatch", async (_event, browserSessionId: Br
   const frame = await browserSessionManager.dispatch(browserSessionId, action);
   if (sessionId) sessionManager.recordBrowserAction(sessionId, browserSessionId, action);
   if (sessionId && frame) sessionManager.recordBrowserProjectionFrame(sessionId, frame);
+  if (sessionId && frame) createBrowserFrameArtifact(sessionId, frame);
   return frame;
 });
 ipcMain.handle("exocortex:browser-capture", async (_event, browserSessionId: BrowserSessionId, sessionId?: AgentSessionId) => {
   const frame = await browserSessionManager.captureFrame(browserSessionId);
   if (sessionId && frame) sessionManager.recordBrowserProjectionFrame(sessionId, frame);
+  if (sessionId && frame) createBrowserFrameArtifact(sessionId, frame);
   return frame;
 });
 
@@ -324,6 +329,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 app.on("before-quit", () => {
+  sttPollingBridge?.stop();
   actionRouter.stop();
   void observationRouter.stopAll();
   eventGraphKernel.close();
@@ -429,6 +435,98 @@ function createMediaArtifact(sessionId: AgentSessionId, kind: "image" | "audio" 
     }
   });
   return sessionManager.createArtifact(stored.artifact);
+}
+
+function createBrowserFrameArtifact(sessionId: AgentSessionId, frame: BrowserProjectionFrame): AgentSessionArtifact {
+  const stored = artifactBlobStore.put({
+    sessionId,
+    kind: "image",
+    title: `Browser frame ${frame.browserSessionId}`,
+    data: browserFrameBytes(frame),
+    mimeType: frame.mimeType,
+    createdAt: frame.capturedAt,
+    metadata: {
+      browserSessionId: frame.browserSessionId,
+      modalityInstanceId: frame.modalityInstanceId,
+      width: frame.width,
+      height: frame.height,
+      capturedAt: frame.capturedAt
+    }
+  });
+  return sessionManager.createArtifact(stored.artifact);
+}
+
+function browserFrameBytes(frame: BrowserProjectionFrame): Buffer {
+  const dataUrl = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(frame.data);
+  if (!dataUrl) return Buffer.from(frame.data);
+  const encoded = dataUrl[3] ?? "";
+  return dataUrl[2] ? Buffer.from(encoded, "base64") : Buffer.from(decodeURIComponent(encoded));
+}
+
+function attachSttTextBridges(): Array<{ modality: ModalityInstance; bridge: ManualInputBridge }> {
+  return ["device_mic_stt_input_text", "ext_mic_1_stt_input_text", "ext_mic_2_stt_input_text"].flatMap((key) => {
+    const modality = modalityRegistry.getModalityByKey(key);
+    if (!modality) return [];
+    const bridge = new ManualInputBridge(modality);
+    observationRouter.attachBridge(bridge);
+    return [{ modality, bridge }];
+  });
+}
+
+function startContinuousSttBridge(bridges: Array<{ modality: ModalityInstance; bridge: ManualInputBridge }>): { stop(): void } | undefined {
+  if (process.env.EXOCORTEX_STT_BRIDGE_ENABLED !== "1" || bridges.length === 0) return undefined;
+  const intervalMs = Number(process.env.EXOCORTEX_STT_BRIDGE_INTERVAL_MS ?? 5_000);
+  const durationMs = Number(process.env.EXOCORTEX_STT_BRIDGE_CAPTURE_MS ?? 2_500);
+  const providerId = process.env.EXOCORTEX_STT_BRIDGE_PROVIDER;
+  let stopped = false;
+  let running = false;
+  const tick = async () => {
+    if (stopped || running) return;
+    running = true;
+    try {
+      for (const { modality, bridge } of bridges) {
+        const captured = await mediaRouter.audioCapture().captureAudio({ deviceId: modality.key, durationMs });
+        const transcript = await mediaRouter.stt(providerId).transcribe({
+          data: captured.data,
+          mimeType: captured.mimeType,
+          filename: captured.filename
+        });
+        if (!transcript.text.trim()) continue;
+        for (const session of runningSessions()) {
+          const audioArtifact = createMediaArtifact(session.id, "audio", captured);
+          sessionManager.createArtifact({
+            sessionId: session.id,
+            kind: "transcript",
+            title: `STT transcript ${modality.key}`,
+            mimeType: "application/json",
+            value: transcript,
+            metadata: {
+              sourceArtifactId: audioArtifact.id,
+              modalityKey: modality.key,
+              providerId: providerId ?? "default"
+            }
+          });
+        }
+        bridge.injectText(transcript.text);
+      }
+    } catch (error) {
+      console.error("Continuous STT bridge failed", error);
+    } finally {
+      running = false;
+    }
+  };
+  const timer = setInterval(() => void tick(), Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 5_000);
+  void tick();
+  return {
+    stop() {
+      stopped = true;
+      clearInterval(timer);
+    }
+  };
+}
+
+function runningSessions(): AgentSession[] {
+  return sessionManager.list().filter((session) => session.state === "running");
 }
 
 function runtimeRefForModel(model: string) {
