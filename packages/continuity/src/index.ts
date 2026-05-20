@@ -4,6 +4,7 @@ export * from "./capabilities.js";
 export * from "./ids.js";
 export * from "./in-memory-store.js";
 export * from "./kernel.js";
+export * from "./operational-state.js";
 export * from "./patch.js";
 export * from "./projector.js";
 export * from "./sqlite-store.js";

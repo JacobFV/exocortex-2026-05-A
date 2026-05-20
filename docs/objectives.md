@@ -178,6 +178,8 @@ Hazardous actuators must also pass an arming, output power, pulse length, and co
 The calibration runtime must provide:
 
 - versioned calibration profiles per physical device.
+- graph-accepted calibration profile state with explicit supersession lineage.
+- branch-scoped safety grants that can be checked before hazardous output.
 - linear analog transforms with clamping.
 - ADC reference conversion.
 - EEG baseline and gain conversion.

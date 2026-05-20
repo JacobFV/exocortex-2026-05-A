@@ -1138,6 +1138,8 @@ Acceptance:
 - active calibration profile is selected by graph state
 - superseded calibration profiles remain inspectable
 
+Status: partially implemented. `@exocortex/continuity` includes operational-state helpers that accept calibration profile nodes and safety grant nodes by proposing and accepting graph patches. Calibration replacement creates a `supersedes` edge, marks the replaced profile `superseded`, leaves the old profile queryable for audit, and returns only active profiles from the branch-scoped reader. Safety grants are accepted as branch graph nodes and filtered by channel and expiry through a graph reader. Safety policy nodes, approval-node linkage, and transport-gate integration are still pending.
+
 ### Stage 9: Package Boundary Cleanup
 
 Deliverables:

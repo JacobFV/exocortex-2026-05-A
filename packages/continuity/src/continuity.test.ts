@@ -10,6 +10,7 @@ import { SQLiteContinuityStore } from "./sqlite-store.js";
 import { createFailureReviewBehavior, createUnsupportedClaimBehavior } from "./behaviors.js";
 import { diffBranch, proposeBranchMerge } from "./branching.js";
 import { ContinuityCapabilityRegistry } from "./capabilities.js";
+import { acceptCalibrationProfile, acceptSafetyGrant, listActiveCalibrationProfiles, listActiveSafetyGrants } from "./operational-state.js";
 import type { ContinuityPatch, ContinuityPatchOp, ContinuityStore } from "./types.js";
 
 const sessionId = createId<"AgentSessionId">("sess");
@@ -119,6 +120,38 @@ async function runStoreContract(store: ContinuityStore): Promise<void> {
   capabilities.setEnabled("main", "tool", "browser_navigate", false, new Date("2026-05-19T00:00:13.000Z"));
   assert.equal(capabilities.listEnabled("main", "tool").length, 0);
   assert.notEqual(capabilities.capabilitySetHash("main"), hashBeforeDisable);
+
+  acceptCalibrationProfile(store, {
+    branchId: "main",
+    profileId: "head_profile_v1",
+    deviceKey: "head_serial_bridge",
+    profile: { calibrations: [] },
+    now: new Date("2026-05-19T00:00:14.000Z")
+  });
+  acceptCalibrationProfile(store, {
+    branchId: "main",
+    profileId: "head_profile_v2",
+    deviceKey: "head_serial_bridge",
+    profile: { calibrations: [{ channel: "battery_voltage" }] },
+    supersedesProfileId: "head_profile_v1",
+    now: new Date("2026-05-19T00:00:15.000Z")
+  });
+  assert.equal(listActiveCalibrationProfiles(store, "main", "head_serial_bridge").length, 1);
+  assert.equal(store.findNodeByStableKey("main", "calibration_profile:head_serial_bridge:head_profile_v1")?.status, "superseded");
+  assert.ok(store.listEdges({ branchId: "main", kind: "supersedes" }).some((edge) => edge.metadata?.deviceKey === "head_serial_bridge"));
+
+  acceptSafetyGrant(store, {
+    branchId: "main",
+    grantId: "laser_bench",
+    channel: "laser_enable",
+    approvedBy: "operator",
+    reason: "bench alignment",
+    hazardous: true,
+    expiresAt: "2026-05-19T00:01:00.000Z",
+    now: new Date("2026-05-19T00:00:16.000Z")
+  });
+  assert.equal(listActiveSafetyGrants(store, "main", "laser_enable", new Date("2026-05-19T00:00:30.000Z")).length, 1);
+  assert.equal(listActiveSafetyGrants(store, "main", "laser_enable", new Date("2026-05-19T00:02:00.000Z")).length, 0);
 }
 
 function baseEvent(payloadSessionId: AgentSessionId, sequence: number, payload: AgentSessionEventPayloadWithoutBase): AgentSessionEvent {
