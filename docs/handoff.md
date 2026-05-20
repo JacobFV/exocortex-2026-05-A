@@ -110,17 +110,19 @@ Read these before making large changes:
 
 The durable backlog is `docs/remaining-work.md`. The highest-leverage next work is:
 
-1. Rotate and replace the exposed OpenAI key in `config/local/.env`; current live check returns `401 invalid_api_key`.
-2. Replace inline Electron HTML with a real renderer bundle and browser-level smoke tests.
-3. Build TTS/speaker action sinks plus camera/video modality observation bridges for Electron and Expo.
-4. Bring up one physical ESP head bridge with `exocortex-hardware bench-smoke`, then validate calibrated samples plus gated actuator output end to end.
-5. Wire evaluation suites into automated retry/simulation frames for provider/tool/policy experiments.
-6. Add blob repair and encrypted-at-rest options.
-7. Add richer graph export/UI filters by session, modality, frame, time, relation, and object data fields.
+1. Replace inline Electron HTML with a real renderer bundle and browser-level smoke tests.
+2. Build Expo TTS/speaker action sinks plus Expo camera/video/image artifact observation bridges.
+3. Bring up one physical ESP head bridge with `exocortex-hardware bench-smoke`, then validate calibrated samples plus gated actuator output end to end.
+4. Wire evaluation suites into automated provider/tool/policy execution harnesses.
+5. Add encrypted-at-rest storage options and live checks for configured media commands.
+6. Add richer graph inspection UI with saved filters, object detail drill-down, relation traversal, and frame/evaluation comparison views.
 
 Recent local commits after the configuration cleanup:
 
 ```txt
+be16633 Require self-mod approval and simulation runs
+0b64d0a Add artifact repair and export filters
+c7b46a5 Add host media modality actions
 6b2e342 Require Electron actuator approvals
 302186f Add hardware bench smoke command
 b0a4b46 Add SQLite forward migrations

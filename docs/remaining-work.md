@@ -27,13 +27,18 @@ These are implemented and covered by repository validation, but still need produ
 - SQLite forward migrations with versioned migration records and query-index migration steps.
 - Opt-in actuator approval lifecycle in `@exocortex/safety`, plus Electron pre-execution approval UI/API required by default for actuator commands.
 - Hardware CLI `bench-smoke` command for attached ESP/head-bridge validation runs.
+- OpenAI-compatible live model smoke passed with the rotated local key.
+- Host media modalities for microphone audio, camera image/video, and speaker audio are registered and bound to sessions.
+- Electron media capture emits modality observations and persisted artifacts; host speaker actions support TTS synthesis and command-backed audio playback.
+- Blob repair tooling can rebuild artifact blobs from replacement data or trusted existing data.
+- Continuity exports filter by object data, relation type, frame id, session id, modality key, event type, object type, and time window.
+- Self-modification promotion requires an approved operator approval object.
+- Simulation/retry frames and simulation run records are graph-native.
 
 ## Remaining Work
 
 ### Runtime Intelligence
 
-- Add automated retry/simulation frames that can re-run a task under alternate capabilities or policies and record evaluations without manual orchestration.
-- Add a guarded operator approval step before promotion applies self-modification patches in production, even when an evaluation passes.
 - Wire evaluation suites to real provider execution harnesses for Ollama, llama.cpp, and OpenAI-compatible models after valid local/provider configuration is present.
 
 ### Host Experience
@@ -44,10 +49,8 @@ These are implemented and covered by repository validation, but still need produ
 
 ### Models And Media
 
-- Replace the invalid local `OPENAI_API_KEY` in `config/local/.env`; live OpenAI-compatible model test currently fails with `401 invalid_api_key`.
-- Run the opt-in live-model smoke command against a valid provider key and local providers.
-- Add real TTS/speaker output modality sinks for Electron and Expo session actions.
-- Add Electron and Expo camera/video/image capture bridges that emit modality observations and persisted artifacts automatically.
+- Add TTS/speaker output modality sinks for Expo session actions.
+- Add Expo camera/video/image capture bridges that emit modality observations and persisted artifacts automatically.
 - Add browser recording artifacts from projected browser sessions.
 
 ### Physical Device Bring-Up
@@ -60,9 +63,7 @@ These are implemented and covered by repository validation, but still need produ
 
 ### Storage And Operations
 
-- Add blob repair tooling using stored SHA-256 hashes.
 - Add encrypted-at-rest option for local blobs and SQLite databases where platform support exists.
-- Add richer continuity export filters by object data fields, relation type, frame id, session id, modality key, and time window.
 - Add opt-in live checks for media commands and attached hardware; model live checks and hardware bench smoke commands now exist.
 
 ### Safety And Calibration
@@ -73,11 +74,11 @@ These are implemented and covered by repository validation, but still need produ
 
 ## Recommended Next Steps
 
-1. Rotate and replace the exposed OpenAI key in `config/local/.env`, then run `EXOCORTEX_LIVE_MODEL_CHECK=1 npm run smoke:live -w @exocortex/models`.
-2. Add a real Electron renderer bundle and Playwright smoke tests for session creation, model health, browser projection, media capture, calibration acceptance, and safety audit views.
-3. Build TTS/speaker action sinks and camera/video modality observation bridges for Electron and Expo.
-4. Bring up one physical ESP head bridge with `exocortex-hardware bench-smoke`, then validate calibrated input plus one safe actuator output end to end.
-5. Wire evaluation suites into automated retry/simulation frames for provider/tool/policy experiments.
+1. Add a real Electron renderer bundle and Playwright smoke tests for session creation, model health, browser projection, media capture, calibration acceptance, and safety audit views.
+2. Build Expo TTS/speaker action sinks and Expo camera/video/image artifact observation bridges.
+3. Bring up one physical ESP head bridge with `exocortex-hardware bench-smoke`, then validate calibrated input plus one safe actuator output end to end.
+4. Wire evaluation suites into automated provider/tool/policy execution harnesses.
+5. Add encrypted-at-rest storage options and live checks for configured media commands.
 
 ## Acceptance Bar
 
