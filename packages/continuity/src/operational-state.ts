@@ -147,6 +147,24 @@ export function acceptSafetyGrant(store: ContinuityStore, input: ContinuitySafet
       hazardous: input.hazardous ?? false
     }
   } satisfies ContinuityNode;
+  const approvalStableKey = `approval:safety_grant:${input.channel}:${input.grantId}`;
+  const approval = {
+    id: continuityId("node", input.branchId, approvalStableKey),
+    branchId: input.branchId,
+    kind: "approval",
+    stableKey: approvalStableKey,
+    status: "active",
+    createdByPatchId: patch.id,
+    createdAt: now.toISOString(),
+    metadata: {
+      approvalKind: "safety_grant",
+      subjectStableKey: stableKey,
+      approvedBy: input.approvedBy,
+      reason: input.reason,
+      expiresAt: input.expiresAt,
+      hazardous: input.hazardous ?? false
+    }
+  } satisfies ContinuityNode;
   proposePatch(store, patch, [
     {
       id: continuityId("op", patch.id, "grant"),
@@ -165,6 +183,42 @@ export function acceptSafetyGrant(store: ContinuityStore, input: ContinuitySafet
           createdAt: now.toISOString(),
           metadata: node.metadata
         }
+      }
+    },
+    {
+      id: continuityId("op", patch.id, "approval"),
+      patchId: patch.id,
+      op: store.findNodeByStableKey(input.branchId, approvalStableKey) ? "update_node" : "create_node",
+      createdAt: now.toISOString(),
+      payload: {
+        ...approval,
+        revision: {
+          id: continuityId("rev", patch.id, approvalStableKey, "v1"),
+          nodeId: approval.id,
+          patchId: patch.id,
+          version: 1,
+          title: `Safety approval ${input.channel}`,
+          body: input.reason,
+          createdAt: now.toISOString(),
+          metadata: approval.metadata
+        }
+      }
+    },
+    {
+      id: continuityId("op", patch.id, "grant_approved_by"),
+      patchId: patch.id,
+      op: "create_edge",
+      createdAt: now.toISOString(),
+      payload: {
+        id: continuityId("edge", input.branchId, node.id, "approved_by", approval.id),
+        branchId: input.branchId,
+        fromNodeId: node.id,
+        toNodeId: approval.id,
+        kind: "approved_by",
+        status: "active",
+        createdByPatchId: patch.id,
+        createdAt: now.toISOString(),
+        metadata: { channel: input.channel, grantId: input.grantId }
       }
     }
   ]);
@@ -243,6 +297,17 @@ export function listActiveSafetyPolicies(store: ContinuityStore, branchId: strin
     .filter((node) => node.kind === "policy" && node.stableKey.startsWith("safety_policy:") && node.status === "active")
     .filter((node) => (node.metadata?.active ?? true) === true)
     .filter((node) => !channel || node.metadata?.channel === channel);
+}
+
+export function listActiveApprovals(store: ContinuityStore, branchId: string, approvalKind?: string, now = new Date()): ContinuityNode[] {
+  return store
+    .listNodes(branchId)
+    .filter((node) => node.kind === "approval" && node.status === "active")
+    .filter((node) => !approvalKind || node.metadata?.approvalKind === approvalKind)
+    .filter((node) => {
+      const expiresAt = node.metadata?.expiresAt;
+      return typeof expiresAt !== "string" || Date.parse(expiresAt) >= now.getTime();
+    });
 }
 
 function operationalPatch(branchId: string, category: string, stableKey: string, reason: string, riskLevel: ContinuityPatch["riskLevel"], now: Date): ContinuityPatch {

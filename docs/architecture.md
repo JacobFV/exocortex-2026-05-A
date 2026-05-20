@@ -129,7 +129,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - Continuity behaviors currently include failure-review, unsupported-claim, contradiction-review, stale-evidence, hazardous-action approval, and completed-dependency unblocking patch proposal primitives.
 - Continuity branch helpers currently support branch creation, branch diffing, merge patch proposal, accepted merge application, and branch abandon/archive transitions.
 - Continuity capability helpers currently register capabilities as idempotent graph nodes and compute branch-scoped enabled capability hashes.
-- Continuity operational-state helpers currently accept calibration profiles, safety policies, and safety grants through graph patches, mark superseded calibration profiles as non-active while keeping them inspectable, and provide branch-scoped readers for active profiles, policies, and grants.
+- Continuity operational-state helpers currently accept calibration profiles, safety policies, safety grants, and grant approval nodes through graph patches, mark superseded calibration profiles as non-active while keeping them inspectable, link safety grants to approvals with `approved_by` edges, and provide branch-scoped readers for active profiles, policies, grants, and approvals.
 - `apps/hardware-cli` owns direct serial hardware operations for bench work: config printing, frame listening, bridge inspection/ping, and validated actuator commands.
 - `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
 - `firmware/esp32-head-bridge` is the ESP32 bridge firmware matching the host serial protocol and default hardware config.

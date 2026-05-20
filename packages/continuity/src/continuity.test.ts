@@ -10,7 +10,7 @@ import { SQLiteContinuityStore } from "./sqlite-store.js";
 import { createCompletedDependencyBehavior, createContradictionReviewBehavior, createFailureReviewBehavior, createHazardousActionApprovalBehavior, createStaleEvidenceBehavior, createUnsupportedClaimBehavior } from "./behaviors.js";
 import { abandonBranch, acceptBranchMerge, archiveBranch, diffBranch, proposeBranchMerge } from "./branching.js";
 import { ContinuityCapabilityRegistry } from "./capabilities.js";
-import { acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, listActiveCalibrationProfiles, listActiveSafetyGrants, listActiveSafetyPolicies } from "./operational-state.js";
+import { acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, listActiveApprovals, listActiveCalibrationProfiles, listActiveSafetyGrants, listActiveSafetyPolicies } from "./operational-state.js";
 import type { ContinuityPatch, ContinuityPatchOp, ContinuityStore } from "./types.js";
 
 const sessionId = createId<"AgentSessionId">("sess");
@@ -227,7 +227,10 @@ async function runStoreContract(store: ContinuityStore): Promise<void> {
     now: new Date("2026-05-19T00:00:16.000Z")
   });
   assert.equal(listActiveSafetyGrants(store, "main", "laser_enable", new Date("2026-05-19T00:00:30.000Z")).length, 1);
+  assert.equal(listActiveApprovals(store, "main", "safety_grant", new Date("2026-05-19T00:00:30.000Z")).length, 1);
+  assert.ok(store.listEdges({ branchId: "main", kind: "approved_by" }).some((edge) => edge.metadata?.grantId === "laser_bench"));
   assert.equal(listActiveSafetyGrants(store, "main", "laser_enable", new Date("2026-05-19T00:02:00.000Z")).length, 0);
+  assert.equal(listActiveApprovals(store, "main", "safety_grant", new Date("2026-05-19T00:02:00.000Z")).length, 0);
 }
 
 function baseEvent(payloadSessionId: AgentSessionId, sequence: number, payload: AgentSessionEventPayloadWithoutBase): AgentSessionEvent {
