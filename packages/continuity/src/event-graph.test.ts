@@ -7,6 +7,7 @@ import { createDefaultContinuityBehaviors, createDefaultContinuityRelationBehavi
 import { EventSourcedGraph } from "./event-graph.js";
 import { EventGraphKernel } from "./event-graph-kernel.js";
 import { InMemoryEventSourcedGraphStore, SQLiteEventSourcedGraphStore } from "./event-graph-store.js";
+import { exportContinuityRun, exportContinuityRunFromStore, readContinuityRunExport, validateContinuityRunExport, writeContinuityRunExport } from "./export.js";
 import { ReactiveGraphRuntime } from "./reactive-runtime.js";
 
 runStorelessGraphContract();
@@ -87,6 +88,12 @@ async function runStoreContract(store: InMemoryEventSourcedGraphStore | SQLiteEv
   graph.emit("custom.fail", {}, { actor: "test" });
   await runtime.runUntilIdle();
   assert.ok(graph.snapshot().events.some((event) => event.type === "behavior.failed" && event.payload.behaviorName === "failure-is-event"));
+
+  const exported = exportContinuityRun(graph, new Date("2026-05-20T00:00:01.000Z"));
+  validateContinuityRunExport(exported);
+  assert.equal(exported.summary.objectCount, graph.snapshot().objects.length);
+  const exportedFromStore = exportContinuityRunFromStore(store, graph.runId, new Date("2026-05-20T00:00:01.000Z"));
+  assert.deepEqual(jsonSnapshot(exportedFromStore.snapshot), jsonSnapshot(graph.snapshot()));
   runtime.close();
 }
 
@@ -159,6 +166,19 @@ async function runContinuityBehaviorContract(): Promise<void> {
   await runtime.runUntilIdle();
   assert.equal(graph.findObjects({ type: "task" }).length, taskCountAfterFirstPass);
   runtime.close();
+}
+
+{
+  const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-event-graph-export-"));
+  try {
+    const exportPath = join(tempRoot, "run.json");
+    const graph = new EventSourcedGraph({ runId: "run_export_file", store: new InMemoryEventSourcedGraphStore(), clock: fixedClock("2026-05-20T00:00:00.000Z") });
+    graph.addObject("task", { stableKey: "task:export", status: "open" }, { actor: "test" });
+    writeContinuityRunExport(exportPath, exportContinuityRun(graph, new Date("2026-05-20T00:00:01.000Z")));
+    assert.equal(readContinuityRunExport(exportPath).summary.objectCount, 1);
+  } finally {
+    rmSync(tempRoot, { recursive: true, force: true });
+  }
 }
 
 function fixedClock(iso: string): () => Date {

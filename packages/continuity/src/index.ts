@@ -5,5 +5,6 @@ export { GraphIdGenerator, createRunId, stableHash, stableIdPart, stableStringif
 export * from "./event-graph-kernel.js";
 export * from "./event-graph-store.js";
 export * from "./event-graph-types.js";
+export * from "./export.js";
 export * from "./operational-state.js";
 export * from "./reactive-runtime.js";

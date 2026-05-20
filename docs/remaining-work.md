@@ -31,7 +31,7 @@ This file is the durable backlog for Exocortex. Keep it concrete and git-referen
 ## Storage And Operations
 
 - SQLite-backed artifact storage alongside event storage.
-- Event graph inspection and export tools for operators.
+- Event graph export format is implemented; add richer operator inspection commands and filtered exports.
 - Migration strategy for local production databases while the schema is still moving quickly.
 - CI coverage for firmware config drift and, when toolchains are installed, ESP32 firmware compilation.
 
