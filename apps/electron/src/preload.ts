@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("exocortex", {
   createSession: (goal: string, model?: string) => ipcRenderer.invoke("exocortex:create-session", goal, model),
+  stopSession: (sessionId: string) => ipcRenderer.invoke("exocortex:stop-session", sessionId),
   listSessions: () => ipcRenderer.invoke("exocortex:list-sessions"),
   listEvents: (sessionId: string) => ipcRenderer.invoke("exocortex:list-events", sessionId),
   listBindings: (sessionId: string) => ipcRenderer.invoke("exocortex:list-bindings", sessionId),
@@ -28,5 +29,10 @@ contextBridge.exposeInMainWorld("exocortex", {
     const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload);
     ipcRenderer.on("exocortex:continuity-event", wrapped);
     return () => ipcRenderer.off("exocortex:continuity-event", wrapped);
+  },
+  onBrowserEvent: (listener: (event: unknown) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload);
+    ipcRenderer.on("exocortex:browser-event", wrapped);
+    return () => ipcRenderer.off("exocortex:browser-event", wrapped);
   }
 });

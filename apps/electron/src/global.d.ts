@@ -4,6 +4,7 @@ declare global {
   interface Window {
     exocortex: {
       createSession(goal: string, model?: string): Promise<unknown>;
+      stopSession(sessionId: string): Promise<unknown>;
       listSessions(): Promise<unknown[]>;
       listEvents(sessionId: string): Promise<unknown[]>;
       listBindings(sessionId: string): Promise<unknown[]>;
@@ -22,6 +23,7 @@ declare global {
       browserCapture(browserSessionId: string): Promise<unknown>;
       onSessionEvent(listener: (event: unknown) => void): () => void;
       onContinuityEvent(listener: (event: unknown) => void): () => void;
+      onBrowserEvent(listener: (event: unknown) => void): () => void;
     };
   }
 }
