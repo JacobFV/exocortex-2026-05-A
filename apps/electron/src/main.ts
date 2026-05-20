@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
 import { acceptSafetyGrant, acceptSafetyPolicy, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveSafetyGrants, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
+import { ModelRouter } from "@exocortex/models";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ActuatorSafetyGate } from "@exocortex/safety";
@@ -22,6 +23,7 @@ const eventGraphKernel = new EventGraphKernel({
 });
 const capabilityRegistry = new EventGraphCapabilityRegistry(eventGraph);
 const agentSessionStore = new SQLiteAgentSessionStore(resolveAgentSessionDbPath());
+const modelRouter = new ModelRouter();
 const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 const toolRouter = new AgentToolRouter(
   createBrowserAgentTools({
@@ -30,7 +32,7 @@ const toolRouter = new AgentToolRouter(
     defaultSessionId: () => browserSessionManager.list()[0]?.id
   })
 );
-const sessionManager = new AgentSessionManager({ store: agentSessionStore, runtime: new ModelDrivenAgentRuntime({ tools: toolRouter, capabilities: capabilityRegistry }), eventGraphKernel });
+const sessionManager = new AgentSessionManager({ store: agentSessionStore, runtime: new ModelDrivenAgentRuntime({ models: modelRouter, tools: toolRouter, capabilities: capabilityRegistry }), eventGraphKernel });
 const observationRouter = new ModalityObservationRouter(sessionManager);
 const actionRouter = new ModalityActionRouter(sessionManager);
 
@@ -118,7 +120,8 @@ async function createMainWindow(): Promise<void> {
 }
 
 ipcMain.handle("exocortex:create-session", async (_event, goal: string, model = process.env.EXOCORTEX_MODEL ?? "local-rules") => {
-  const session = sessionManager.create({ goal, runtime: { provider: "local", model, driver: "model-driven-agent-runtime" } });
+  modelRouter.get(model);
+  const session = sessionManager.create({ goal, runtime: runtimeRefForModel(model) });
   for (const modality of modalityRegistry.listModalityInstances()) {
     sessionManager.bindModality(session.id, registryBinding(session.id, modality.id));
   }
@@ -136,6 +139,10 @@ ipcMain.handle("exocortex:list-sessions", () => sessionManager.list());
 ipcMain.handle("exocortex:list-events", (_event, sessionId: AgentSessionId) => sessionManager.events(sessionId));
 ipcMain.handle("exocortex:list-bindings", (_event, sessionId: AgentSessionId) => sessionManager.listBindings(sessionId));
 ipcMain.handle("exocortex:list-artifacts", (_event, sessionId: AgentSessionId) => sessionManager.artifacts(sessionId));
+ipcMain.handle("exocortex:list-models", async () => ({
+  models: modelRouter.list(),
+  health: await modelRouter.health()
+}));
 ipcMain.handle("exocortex:list-modalities", () => ({
   deviceTypes: modalityRegistry.listDeviceTypes(),
   modalityTypes: modalityRegistry.listModalityTypes(),
@@ -258,13 +265,15 @@ function publishHostCapabilities(): void {
       definition: device
     });
   }
-  capabilityRegistry.register({
-    kind: "model",
-    key: process.env.EXOCORTEX_MODEL ?? "local-rules",
-    provider: process.env.EXOCORTEX_MODEL_PROVIDER ?? "local",
-    version: "1",
-    definition: { model: process.env.EXOCORTEX_MODEL ?? "local-rules" }
-  });
+  for (const model of modelRouter.list()) {
+    capabilityRegistry.register({
+      kind: "model",
+      key: model.id,
+      provider: model.provider,
+      version: "1",
+      definition: model
+    });
+  }
 }
 
 function resolveEventGraphDbPath(): string {
@@ -279,4 +288,16 @@ function resolveAgentSessionDbPath(): string {
   const dbPath = configured && configured.length > 0 ? configured : join(app.getPath("userData"), "agent-sessions.db");
   mkdirSync(dirname(dbPath), { recursive: true });
   return dbPath;
+}
+
+function runtimeRefForModel(model: string) {
+  const provider = modelRouter.list().find((candidate) => candidate.id === model)?.provider;
+  return {
+    provider: provider === "openai_compatible" ? "openai_compatible" as const
+      : provider === "ollama" ? "ollama" as const
+        : provider === "llama_cpp_cli" ? "llama_cpp_cli" as const
+          : "local" as const,
+    model,
+    driver: "model-driven-agent-runtime"
+  };
 }

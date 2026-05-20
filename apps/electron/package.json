@@ -14,6 +14,7 @@
     "@exocortex/browser-session": "0.0.0",
     "@exocortex/continuity": "0.0.0",
     "@exocortex/hardware": "0.0.0",
+    "@exocortex/models": "0.0.0",
     "@exocortex/modalities": "0.0.0",
     "@exocortex/protocol": "0.0.0",
     "@exocortex/safety": "0.0.0",

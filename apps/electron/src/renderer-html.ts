@@ -356,6 +356,13 @@ export function renderHtml(): string {
           </div>
           <div id="session-list" class="panel-body session-list"></div>
         </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2>Models</h2>
+          </div>
+          <div id="model-health" class="panel-body stack"></div>
+        </section>
       </aside>
 
       <section class="content">
@@ -399,6 +406,7 @@ export function renderHtml(): string {
         events: [],
         bindings: [],
         artifacts: [],
+        models: { models: [], health: [] },
         modalities: { devices: [], modalities: [], deviceTypes: [], modalityTypes: [] },
         continuity: { objects: [], relations: [], events: [] },
         safety: { policies: [], grants: [] },
@@ -459,12 +467,14 @@ export function renderHtml(): string {
             window.exocortex.listContinuityRelations(),
             window.exocortex.listContinuityEvents(),
             window.exocortex.listActuatorSafety(),
-            window.exocortex.listBrowserSessions()
+            window.exocortex.listBrowserSessions(),
+            window.exocortex.listModels()
           ]);
           state.modalities = base[0] || state.modalities;
           state.continuity = { objects: base[1] || [], relations: base[2] || [], events: base[3] || [] };
           state.safety = base[4] || { policies: [], grants: [] };
           state.browsers = base[5] || [];
+          state.models = base[6] || { models: [], health: [] };
           if (selected) {
             const details = await Promise.all([
               window.exocortex.listEvents(selected.id),
@@ -504,6 +514,7 @@ export function renderHtml(): string {
       function render() {
         renderShell();
         renderSessions();
+        renderModels();
         renderTimeline();
         renderModalities();
         renderBrowser();
@@ -545,6 +556,16 @@ export function renderHtml(): string {
             '<span>' + escapeHtml(session.state) + ' / ' + escapeHtml(shortId(session.id)) + ' / ' + escapeHtml(time(session.updatedAt)) + '</span>' +
           '</button>';
         }).join('');
+      }
+
+      function renderModels() {
+        const health = state.models.health || [];
+        const root = el('#model-health');
+        if (!root) return;
+        root.innerHTML = health.length ? health.map(function (model) {
+          const tone = model.status === 'available' || model.status === 'configured' ? 'green' : 'red';
+          return '<div class="small"><span class="pill ' + tone + '">' + escapeHtml(model.status) + '</span> <strong>' + escapeHtml(model.id) + '</strong><br><span class="muted">' + escapeHtml(model.message) + '</span></div>';
+        }).join('') : '<div class="empty">No models</div>';
       }
 
       function renderTimeline() {

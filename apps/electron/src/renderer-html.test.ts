@@ -29,6 +29,7 @@ for (const preloadApi of [
   "listEvents",
   "listBindings",
   "listArtifacts",
+  "listModels",
   "listModalities",
   "listContinuityObjects",
   "listContinuityRelations",

@@ -9,6 +9,7 @@ declare global {
       listEvents(sessionId: string): Promise<unknown[]>;
       listBindings(sessionId: string): Promise<unknown[]>;
       listArtifacts(sessionId: string): Promise<unknown[]>;
+      listModels(): Promise<unknown>;
       listModalities(): Promise<unknown[]>;
       listContinuityObjects(): Promise<unknown[]>;
       listContinuityRelations(): Promise<unknown[]>;

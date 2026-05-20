@@ -2,7 +2,7 @@ import { LlamaCppCliChatModel } from "./llama-cpp-cli.js";
 import { LocalRulesModel } from "./local-rules.js";
 import { OllamaChatModel } from "./ollama.js";
 import { OpenAICompatibleChatModel } from "./openai-compatible.js";
-import type { ChatModel, ModelConfig } from "./types.js";
+import type { ChatModel, ModelConfig, ModelHealth } from "./types.js";
 
 export class ModelRouter {
   private readonly models = new Map<string, ChatModel>();
@@ -34,6 +34,21 @@ export class ModelRouter {
   list(): Array<{ id: string; provider: ChatModel["provider"] }> {
     return [...this.models.values()].map((model) => ({ id: model.id, provider: model.provider }));
   }
+
+  async health(id?: string): Promise<ModelHealth[]> {
+    const models = id ? [this.get(id)] : [...this.models.values()];
+    return Promise.all(
+      models.map(async (model) => {
+        if (model.health) return model.health();
+        return {
+          id: model.id,
+          provider: model.provider,
+          status: "configured",
+          message: "Model does not expose an active health check."
+        };
+      })
+    );
+  }
 }
 
 export function createModel(config: ModelConfig): ChatModel {
@@ -50,7 +65,7 @@ export function createModel(config: ModelConfig): ChatModel {
 }
 
 export function defaultModelConfigs(): ModelConfig[] {
-  return [
+  const configs: ModelConfig[] = [
     { id: "local-rules", provider: "local_rules" },
     { id: "ollama-default", provider: "ollama", model: process.env.EXOCORTEX_OLLAMA_MODEL ?? "llama3.2" },
     {
@@ -61,4 +76,13 @@ export function defaultModelConfigs(): ModelConfig[] {
       apiKeyEnv: "OPENAI_API_KEY"
     }
   ];
+  if (process.env.EXOCORTEX_LLAMA_CPP_COMMAND) {
+    configs.push({
+      id: "llama-cpp-cli",
+      provider: "llama_cpp_cli",
+      command: process.env.EXOCORTEX_LLAMA_CPP_COMMAND,
+      args: process.env.EXOCORTEX_LLAMA_CPP_ARGS ? JSON.parse(process.env.EXOCORTEX_LLAMA_CPP_ARGS) as string[] : []
+    });
+  }
+  return configs;
 }

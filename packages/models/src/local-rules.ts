@@ -1,9 +1,18 @@
-import type { ChatModel, ChatRequest, ChatStreamEvent } from "./types.js";
+import type { ChatModel, ChatRequest, ChatStreamEvent, ModelHealth } from "./types.js";
 
 export class LocalRulesModel implements ChatModel {
   readonly provider = "local_rules";
 
   constructor(readonly id = "local-rules") {}
+
+  async health(): Promise<ModelHealth> {
+    return {
+      id: this.id,
+      provider: this.provider,
+      status: "available",
+      message: "Deterministic local rules model is available."
+    };
+  }
 
   async *stream(request: ChatRequest): AsyncIterable<ChatStreamEvent> {
     const last = [...request.messages].reverse().find((message) => message.role === "user");

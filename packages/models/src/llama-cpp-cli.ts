@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { ChatModel, ChatRequest, ChatStreamEvent, ModelConfig } from "./types.js";
+import type { ChatModel, ChatRequest, ChatStreamEvent, ModelConfig, ModelHealth } from "./types.js";
 
 export class LlamaCppCliChatModel implements ChatModel {
   readonly provider = "llama_cpp_cli";
@@ -12,6 +12,16 @@ export class LlamaCppCliChatModel implements ChatModel {
     if (!config.command) throw new Error("llama_cpp_cli model requires command");
     this.command = config.command;
     this.args = config.args ?? [];
+  }
+
+  async health(): Promise<ModelHealth> {
+    return {
+      id: this.id,
+      provider: this.provider,
+      status: "configured",
+      message: "llama.cpp CLI command is configured. Live availability is verified when the process is spawned.",
+      model: this.command
+    };
   }
 
   async *stream(request: ChatRequest): AsyncIterable<ChatStreamEvent> {

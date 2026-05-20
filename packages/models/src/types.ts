@@ -30,10 +30,22 @@ export type ChatStreamEvent =
   | { type: "tool_call"; toolCall: ToolCall }
   | { type: "done"; usage?: Record<string, unknown> };
 
+export type ModelHealthStatus = "available" | "configured" | "unavailable" | "configuration_error";
+
+export interface ModelHealth {
+  id: string;
+  provider: ModelProviderKind;
+  status: ModelHealthStatus;
+  message: string;
+  model?: string;
+  baseUrl?: string;
+}
+
 export interface ChatModel {
   readonly id: string;
   readonly provider: ModelProviderKind;
   stream(request: ChatRequest): AsyncIterable<ChatStreamEvent>;
+  health?(): Promise<ModelHealth>;
 }
 
 export interface ModelConfig {

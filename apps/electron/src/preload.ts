@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("exocortex", {
   listEvents: (sessionId: string) => ipcRenderer.invoke("exocortex:list-events", sessionId),
   listBindings: (sessionId: string) => ipcRenderer.invoke("exocortex:list-bindings", sessionId),
   listArtifacts: (sessionId: string) => ipcRenderer.invoke("exocortex:list-artifacts", sessionId),
+  listModels: () => ipcRenderer.invoke("exocortex:list-models"),
   listModalities: () => ipcRenderer.invoke("exocortex:list-modalities"),
   listContinuityObjects: () => ipcRenderer.invoke("exocortex:list-continuity-objects"),
   listContinuityRelations: () => ipcRenderer.invoke("exocortex:list-continuity-relations"),

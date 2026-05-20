@@ -1,4 +1,4 @@
-import type { ChatModel, ChatRequest, ChatStreamEvent, ModelConfig } from "./types.js";
+import type { ChatModel, ChatRequest, ChatStreamEvent, ModelConfig, ModelHealth } from "./types.js";
 import { parseJsonObject, streamUtf8Lines } from "./stream-utils.js";
 
 export class OpenAICompatibleChatModel implements ChatModel {
@@ -13,6 +13,27 @@ export class OpenAICompatibleChatModel implements ChatModel {
     this.model = config.model ?? "gpt-4o-mini";
     this.baseUrl = (config.baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, "");
     this.apiKey = config.apiKey ?? (config.apiKeyEnv ? process.env[config.apiKeyEnv] : process.env.OPENAI_API_KEY);
+  }
+
+  async health(): Promise<ModelHealth> {
+    if (!this.apiKey) {
+      return {
+        id: this.id,
+        provider: this.provider,
+        status: "configuration_error",
+        message: `Missing API key for ${this.id}. Set the configured apiKeyEnv or OPENAI_API_KEY.`,
+        model: this.model,
+        baseUrl: this.baseUrl
+      };
+    }
+    return {
+      id: this.id,
+      provider: this.provider,
+      status: "configured",
+      message: "API key is configured. Live availability is verified when a stream request is made.",
+      model: this.model,
+      baseUrl: this.baseUrl
+    };
   }
 
   async *stream(request: ChatRequest): AsyncIterable<ChatStreamEvent> {
