@@ -7,6 +7,7 @@ import { ContinuityKernel } from "./kernel.js";
 import { acceptPatch, ensureMainBranch, proposePatch, rejectPatch } from "./patch.js";
 import { InMemoryContinuityStore } from "./in-memory-store.js";
 import { SQLiteContinuityStore } from "./sqlite-store.js";
+import { createFailureReviewBehavior, createUnsupportedClaimBehavior } from "./behaviors.js";
 import type { ContinuityPatch, ContinuityPatchOp, ContinuityStore } from "./types.js";
 
 const sessionId = createId<"AgentSessionId">("sess");
@@ -25,12 +26,12 @@ const failed: AgentSessionEvent = baseEvent(sessionId, 3, {
   message: "command failed"
 });
 
-runStoreContract(new InMemoryContinuityStore());
+await runStoreContract(new InMemoryContinuityStore());
 
 const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-continuity-"));
 try {
   const sqlite = new SQLiteContinuityStore(join(tempRoot, "continuity.db"));
-  runStoreContract(sqlite);
+  await runStoreContract(sqlite);
   sqlite.close();
   const reopened = new SQLiteContinuityStore(join(tempRoot, "continuity.db"));
   assert.ok(reopened.findNodeByStableKey("main", `session:${sessionId}`));
@@ -40,7 +41,7 @@ try {
   rmSync(tempRoot, { recursive: true, force: true });
 }
 
-function runStoreContract(store: ContinuityStore): void {
+async function runStoreContract(store: ContinuityStore): Promise<void> {
   ensureMainBranch(store, new Date("2026-05-19T00:00:00.000Z"));
   const kernel = new ContinuityKernel({ store });
   const changes: string[] = [];
@@ -74,6 +75,26 @@ function runStoreContract(store: ContinuityStore): void {
   acceptPatch(store, patch2.id, "test", new Date("2026-05-19T00:00:07.000Z"));
   assert.equal(store.getNode("node_branch_manual")?.kind, "task");
   assert.equal(store.findNodeByStableKey("main", "task:manual"), undefined);
+
+  const failureChange = {
+    branchId: "main",
+    patchId: "patch_failure_change",
+    nodeIds: store.listNodes("main").filter((node) => node.kind === "failure").map((node) => node.id),
+    edgeIds: [],
+    changedAt: "2026-05-19T00:00:08.000Z"
+  };
+  const proposed = await createFailureReviewBehavior().evaluate(failureChange, { store, now: new Date("2026-05-19T00:00:08.000Z") });
+  assert.equal(proposed.length, 1);
+  proposePatch(store, proposed[0]!.patch, proposed[0]!.ops);
+  acceptPatch(store, proposed[0]!.patch.id, "test", new Date("2026-05-19T00:00:09.000Z"));
+  assert.ok(store.listNodes("main").some((node) => node.kind === "task" && node.stableKey.startsWith("task:review_failure:")));
+
+  const claimPatch = manualClaimPatch("main");
+  proposePatch(store, claimPatch.patch, claimPatch.ops);
+  acceptPatch(store, claimPatch.patch.id, "test", new Date("2026-05-19T00:00:10.000Z"));
+  const claimChange = { branchId: "main", patchId: claimPatch.patch.id, nodeIds: ["node_claim_manual"], edgeIds: [], changedAt: "2026-05-19T00:00:10.000Z" };
+  const claimProposals = await createUnsupportedClaimBehavior().evaluate(claimChange, { store, now: new Date("2026-05-19T00:00:11.000Z") });
+  assert.equal(claimProposals.length, 1);
 }
 
 function baseEvent(payloadSessionId: AgentSessionId, sequence: number, payload: AgentSessionEventPayloadWithoutBase): AgentSessionEvent {
@@ -124,5 +145,46 @@ function manualNodeOp(patch: ContinuityPatch): ContinuityPatchOp {
         metadata: {}
       }
     }
+  };
+}
+
+function manualClaimPatch(branchId: string): { patch: ContinuityPatch; ops: ContinuityPatchOp[] } {
+  const patch: ContinuityPatch = {
+    id: "patch_claim_manual",
+    branchId,
+    status: "proposed",
+    riskLevel: "medium",
+    reason: "manual unsupported claim",
+    createdAt: "2026-05-19T00:00:10.000Z"
+  };
+  return {
+    patch,
+    ops: [
+      {
+        id: "op_claim_manual",
+        patchId: patch.id,
+        op: "create_node",
+        createdAt: patch.createdAt,
+        payload: {
+          id: "node_claim_manual",
+          branchId,
+          kind: "claim",
+          stableKey: "claim:manual",
+          status: "active",
+          createdByPatchId: patch.id,
+          createdAt: patch.createdAt,
+          metadata: {},
+          revision: {
+            id: "rev_claim_manual",
+            nodeId: "node_claim_manual",
+            patchId: patch.id,
+            version: 1,
+            title: "Manual claim",
+            createdAt: patch.createdAt,
+            metadata: {}
+          }
+        }
+      }
+    ]
   };
 }

@@ -125,6 +125,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
 - `packages/computer-session` owns projected controllable non-browser computer sessions, pointer/keyboard actions, lifecycle events, and screen projection frames.
 - `packages/continuity` owns the continuity kernel foundation: branch-scoped graph state, patch proposal and acceptance, in-memory and SQLite graph stores, event projection, and behavior hooks.
+- Continuity behaviors currently include failure-review and unsupported-claim patch proposal primitives.
 - `apps/hardware-cli` owns direct serial hardware operations for bench work: config printing, frame listening, bridge inspection/ping, and validated actuator commands.
 - `apps/electron` and `apps/expo` are host shells that create a default host graph and bind every live modality into a new session.
 - `firmware/esp32-head-bridge` is the ESP32 bridge firmware matching the host serial protocol and default hardware config.

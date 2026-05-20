@@ -1,3 +1,4 @@
+export * from "./behaviors.js";
 export * from "./ids.js";
 export * from "./in-memory-store.js";
 export * from "./kernel.js";

@@ -1080,6 +1080,8 @@ Acceptance:
 - accepted behavior patches include provenance to triggering graph change
 - hazardous behavior prevents transport write without active approval
 
+Status: partially implemented. `@exocortex/continuity` includes behavior primitives and tests for failure-review and unsupported-claim behaviors. They inspect accepted graph changes and propose task patches without direct mutation. Hazardous action, stale evidence, dependency unblocking, contradiction review, and calibration supersession behaviors remain to be implemented.
+
 ### Stage 6: Branch Operations
 
 Deliverables:
