@@ -23,7 +23,7 @@ const toolRouter = new AgentToolRouter(
     defaultSessionId: () => browserSessionManager.list()[0]?.id
   })
 );
-const sessionManager = new AgentSessionManager({ runtime: new ModelDrivenAgentRuntime({ tools: toolRouter }), continuityKernel });
+const sessionManager = new AgentSessionManager({ runtime: new ModelDrivenAgentRuntime({ tools: toolRouter, capabilities: capabilityRegistry }), continuityKernel });
 const observationRouter = new ModalityObservationRouter(sessionManager);
 const actionRouter = new ModalityActionRouter(sessionManager);
 
