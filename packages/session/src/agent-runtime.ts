@@ -1,4 +1,4 @@
-import { type ContinuityCapabilityRegistry } from "@exocortex/continuity";
+import { stableHash, type ContinuityCapabilityRegistry } from "@exocortex/continuity";
 import { createId, type AgentSession, type AgentSessionEvent, type AgentSessionEventPayload } from "@exocortex/protocol";
 import { ModelRouter, type ChatMessage, type ChatStreamEvent, type ToolCall, type ToolDefinition } from "@exocortex/models";
 import { AgentToolRouter } from "./tool-router.js";
@@ -145,8 +145,20 @@ export class ModelDrivenAgentRuntime implements AgentRuntime {
     return {
       modelId: this.selectedModelId(session),
       runtimeId: this.runtimeId,
+      promptHash: stableHash(systemPrompt(session)),
+      policyHash: this.policyHash(session),
       capabilitySetHash: this.options.capabilities?.capabilitySetHash(session.branchId)
     };
+  }
+
+  private policyHash(session: AgentSession): string | undefined {
+    if (!this.options.capabilities) return undefined;
+    return stableHash(
+      this.options.capabilities.listEnabled(session.branchId, "policy").map((node) => ({
+        stableKey: node.stableKey,
+        hash: node.metadata?.capabilityHash
+      }))
+    );
   }
 
   private selectedModelId(session: AgentSession): string {

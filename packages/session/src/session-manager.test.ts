@@ -156,6 +156,7 @@ await new Promise((resolve) => setTimeout(resolve, 0));
 assert.deepEqual(capabilityModel.seenToolNames[0], ["record_context"]);
 assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.completed"));
 assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.started" && event.metadata?.capabilitySetHash));
+assert.ok(capabilityManager.events(capabilitySession.id).some((event) => event.type === "tool_call.started" && event.metadata?.promptHash && event.metadata?.policyHash));
 capabilityRegistry.setEnabled("main", "tool", "record_context", false);
 capabilityManager.observe(capabilitySession.id, capabilityBinding.id, "text.final", { text: "tool blocked" });
 await new Promise((resolve) => setTimeout(resolve, 0));

@@ -182,7 +182,7 @@ The Ollama and OpenAI-compatible providers consume real response streams. Text d
 
 Model-driven sessions use an `AgentToolRouter`. Tool definitions are supplied to each model turn, tool calls are recorded as `tool_call.started`, `tool_call.completed`, or `tool_call.failed`, and successful tool outputs are appended as tool messages before the next bounded model pass.
 
-When a `ContinuityCapabilityRegistry` is attached to the model runtime, model turns receive only tool definitions whose graph capability nodes are enabled for the session branch. Disabled or absent tool capabilities are rejected before execution even if a model emits the call. Assistant message and tool-call events include model/runtime ids and the branch capability-set hash so later graph inspection can reconstruct the capability surface used for the turn. Electron runs its model runtime with this registry attached.
+When a `ContinuityCapabilityRegistry` is attached to the model runtime, model turns receive only tool definitions whose graph capability nodes are enabled for the session branch. Disabled or absent tool capabilities are rejected before execution even if a model emits the call. Assistant message and tool-call events include model/runtime ids, prompt hash, policy hash, and the branch capability-set hash so later graph inspection can reconstruct the capability surface used for the turn. Electron runs its model runtime with this registry attached.
 
 Electron installs concrete browser tools into that router. A model can create or select a projected Electron browser session, then call tools for navigation, clicks, typing, key presses, scrolling, JavaScript evaluation, and frame capture. Those tool calls also emit browser session events into the agent event log.
 
