@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSessionEvent } from "@exocortex/protocol";
+import { createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "./event-graph-behaviors.js";
 import { EventSourcedGraph } from "./event-graph.js";
 import { EventGraphKernel } from "./event-graph-kernel.js";
 import { InMemoryEventSourcedGraphStore, SQLiteEventSourcedGraphStore } from "./event-graph-store.js";
@@ -10,6 +11,7 @@ import { ReactiveGraphRuntime } from "./reactive-runtime.js";
 
 runStorelessGraphContract();
 runKernelIdempotencyContract();
+await runContinuityBehaviorContract();
 await runStoreContract(new InMemoryEventSourcedGraphStore());
 
 const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-event-graph-"));
@@ -113,6 +115,50 @@ function runKernelIdempotencyContract(): void {
   const afterSecond = graph.snapshot();
   assert.deepEqual(jsonSnapshot(afterSecond), jsonSnapshot(afterFirst));
   kernel.close();
+}
+
+async function runContinuityBehaviorContract(): Promise<void> {
+  const graph = new EventSourcedGraph({ runId: "run_behaviors", store: new InMemoryEventSourcedGraphStore(), clock: fixedClock("2026-05-20T00:00:00.000Z") });
+  const runtime = new ReactiveGraphRuntime({
+    graph,
+    behaviors: createDefaultContinuityBehaviors({ staleEvidenceMaxAgeMs: 60_000 }),
+    relationBehaviors: createDefaultContinuityRelationBehaviors()
+  });
+
+  const claim = graph.addObject("claim", { text: "EEG contact quality is degraded" }, { actor: "test" });
+  await runtime.runUntilIdle();
+  const unsupportedTask = graph.findObjects({ type: "task", where: { taskKind: "review_unsupported_claim", subjectObjectId: claim.id } })[0];
+  assert.equal(unsupportedTask?.data.status, "open");
+
+  const otherClaim = graph.addObject("claim", { text: "EEG contact quality is nominal", evidenceIds: ["manual"] }, { actor: "test" });
+  graph.addRelation(claim.id, otherClaim.id, "contradicts", {}, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.ok(graph.findObjects({ type: "task", where: { taskKind: "review_contradiction" } }).length);
+
+  const staleEvidence = graph.addObject("evidence", { sourceTimestamp: "2026-05-19T23:00:00.000Z", valueHash: "old" }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.ok(graph.findObjects({ type: "task", where: { taskKind: "review_stale_evidence", subjectObjectId: staleEvidence.id } }).length);
+
+  const hazardousAction = graph.addObject("action", { actionType: "actuator.command", hazardous: true }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.equal(graph.findObjects({ type: "task", where: { taskKind: "approve_hazardous_action", subjectObjectId: hazardousAction.id } })[0]?.data.status, "waiting_approval");
+
+  const failure = graph.addObject("failure", { code: "serial_disconnect", recoverable: true }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.ok(graph.findObjects({ type: "task", where: { taskKind: "review_failure", subjectObjectId: failure.id } }).length);
+
+  const dependency = graph.addObject("task", { stableKey: "task:dependency", status: "open" }, { actor: "test" });
+  const dependent = graph.addObject("task", { stableKey: "task:dependent", status: "blocked" }, { actor: "test" });
+  graph.addRelation(dependent.id, dependency.id, "depends_on", {}, { actor: "test" });
+  graph.patchObject(dependency.id, { status: "completed" }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.equal(graph.getObject(dependent.id)?.data.status, "open");
+
+  const taskCountAfterFirstPass = graph.findObjects({ type: "task" }).length;
+  graph.emit("object.created", { object: claim }, { actor: "test" });
+  await runtime.runUntilIdle();
+  assert.equal(graph.findObjects({ type: "task" }).length, taskCountAfterFirstPass);
+  runtime.close();
 }
 
 function fixedClock(iso: string): () => Date {

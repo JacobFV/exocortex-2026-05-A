@@ -128,6 +128,7 @@ The same event model covers local desktop, remote VM, containerized browser, AR 
 - `packages/browser-session` owns projected controllable browser/computer-session abstractions, lifecycle events, action dispatch, and screen projection frames.
 - `packages/computer-session` owns projected controllable non-browser computer sessions, pointer/keyboard actions, lifecycle events, and screen projection frames.
 - `packages/continuity` owns the event graph substrate: event storage, replayable graph projection, patch proposal/application/rejection, frames, reactive behaviors, session projection, capabilities, and safety/calibration operational state.
+- Continuity behaviors create durable graph tasks for unsupported claims, contradictions, stale evidence, hazardous actions, and failures, and relation behaviors unblock dependent tasks when dependencies reach terminal states.
 - Continuity capability helpers register capabilities as idempotent graph objects and compute enabled capability hashes.
 - Continuity operational-state helpers accept calibration profiles, safety policies, safety grants, and grant approval objects into the event graph, mark superseded calibration profiles as non-active while keeping them inspectable, link safety grants to approvals with `approved_by` relations, and provide graph readers for active profiles, policies, grants, and approvals.
 - `apps/hardware-cli` owns direct serial hardware operations for bench work: config printing, frame listening, bridge inspection/ping, and validated actuator commands.

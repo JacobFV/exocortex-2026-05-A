@@ -4,7 +4,7 @@ This file is the durable backlog for Exocortex. Keep it concrete and git-referen
 
 ## Runtime Intelligence
 
-- EventGraph-native behaviors for unsupported claims, contradictions, stale evidence, hazardous actions, failures, and dependency unblocking.
+- Expand EventGraph-native behaviors beyond the implemented unsupported-claim, contradiction, stale-evidence, hazardous-action, failure-review, and dependency-unblocking primitives.
 - Evaluation objects and frame/run comparison for retries, simulations, policy experiments, and model/tool selection experiments.
 - Promotion flow for self-modification: propose prompt/policy/behavior changes, run comparison frames, record evaluation, apply the winning patch with provenance.
 - Rich graph views for agent context assembly: scoped by session, goal, modality, frame, capability set, and recent causality.
@@ -45,7 +45,7 @@ This file is the durable backlog for Exocortex. Keep it concrete and git-referen
 ## Acceptance Bar
 
 - `npm run validate` passes.
-- No compatibility packages or legacy continuity store APIs.
+- No legacy shim packages or old continuity store APIs.
 - All host-observed values preserve modality provenance.
 - Hazardous actuator output cannot bypass validation and graph-backed grants.
 - EventGraph state is replayable from append-only events.

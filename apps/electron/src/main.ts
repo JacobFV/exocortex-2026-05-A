@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { acceptSafetyGrant, acceptSafetyPolicy, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveSafetyGrants, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
+import { acceptSafetyGrant, acceptSafetyPolicy, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveSafetyGrants, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
@@ -14,7 +14,11 @@ const modalityRegistry = new ModalityRegistry();
 const hostModalities = modalityRegistry.createDefaultHostGraph();
 const eventGraphStore = new SQLiteEventSourcedGraphStore(resolveEventGraphDbPath());
 const eventGraph = new EventSourcedGraph({ runId: "main", store: eventGraphStore });
-const eventGraphKernel = new EventGraphKernel({ graph: eventGraph });
+const eventGraphKernel = new EventGraphKernel({
+  graph: eventGraph,
+  behaviors: createDefaultContinuityBehaviors(),
+  relationBehaviors: createDefaultContinuityRelationBehaviors()
+});
 const capabilityRegistry = new EventGraphCapabilityRegistry(eventGraph);
 const browserSessionManager = new BrowserSessionManager(new ElectronBrowserController());
 const toolRouter = new AgentToolRouter(
