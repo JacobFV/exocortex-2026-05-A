@@ -100,7 +100,7 @@ export class OpenAICompatibleChatModel implements ChatModel {
 }
 
 function redactSecrets(value: string): string {
-  return value.replace(/sk-[A-Za-z0-9_-]+/g, "sk-REDACTED");
+  return value.replace(/sk-[^"'\s]+/g, "sk-REDACTED");
 }
 
 interface OpenAIChatCompletionChunk {
