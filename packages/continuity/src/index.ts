@@ -1,5 +1,6 @@
 export * from "./behaviors.js";
 export * from "./branching.js";
+export * from "./capabilities.js";
 export * from "./ids.js";
 export * from "./in-memory-store.js";
 export * from "./kernel.js";
