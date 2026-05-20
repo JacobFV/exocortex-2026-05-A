@@ -34,6 +34,7 @@ Every observation and action keeps its source modality explicit so the agent can
 - `docs/continuity-kernel.md` - EventGraph continuity substrate specification, schema, rejected designs, and invariants
 - `docs/objectives.md` - durable objective ledger for product, hardware, model, and runtime scope
 - `docs/remaining-work.md` - durable implementation backlog and acceptance bar
+- `docs/handoff.md` - compact project memory for continuing work from another machine
 - `firmware/esp32-head-bridge` - ESP32 firmware for serial JSON frames, analog mux scanning, ADC sampling, and actuator control
 
 ## Commands
