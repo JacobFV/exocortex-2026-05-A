@@ -22,13 +22,15 @@ Exocortex keeps that shape, but generalizes "environment" into many typed modali
 
 ## Continuity Kernel Direction
 
-The current runtime is session-centered. The target architecture is continuity-centered. `AgentSessionManager` remains important, but it becomes one actor inside a `ContinuityKernel`.
+The current runtime is being moved from session-centered to event-graph-centered. `AgentSessionManager` remains important, but it becomes one actor inside the continuity runtime.
 
-The continuity kernel owns the event append path, patch proposal and acceptance, branch-scoped graph state, behavior dispatch, capability registry hooks, and policy/approval gates. Events record what happened. Accepted patches record what changed. The graph represents what is true for a branch. Behaviors react to accepted graph changes.
+The continuity runtime owns the event append path, object/relation projection, patch proposal/application/rejection events, scoped views, behavior dispatch, relation behavior dispatch, capability registry hooks, and policy/approval gates. Events are the durable source of truth. The graph is a replayable projection.
 
 The detailed schema, rejected designs, package refactors, projection rules, behavior rules, branching model, and implementation plan are specified in [continuity-kernel.md](./continuity-kernel.md).
 
 Current session integration is enabled in Electron and opt-in for other hosts: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`. Electron creates a SQLite-backed continuity store at startup, passes its kernel into the session manager, exposes graph node/edge/patch reads over IPC, records actuator arming as safety-grant graph state, publishes host tool/modality/device/model capabilities, and lets the actuator safety gate validate against active graph grants.
+
+The new event-graph implementation in `@exocortex/continuity` adds append-only `ContinuityEvent` storage, `EventSourcedGraph`, generic graph objects and relations, scoped graph views, `ReactiveGraphRuntime`, regular behaviors, relation behaviors, replay from event storage, and SQLite/in-memory event stores. Existing patch/node/edge tables are being removed rather than preserved as legacy ballast.
 
 ### `agent_sessions`
 

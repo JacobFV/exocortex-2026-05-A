@@ -4,21 +4,21 @@ This document is the durable specification for the next core architecture stage.
 
 ## Executive Decision
 
-Exocortex must be centered on a `ContinuityKernel`, not on `AgentSessionManager`.
+Exocortex must be centered on an event-sourced continuity runtime, not on `AgentSessionManager`.
 
 An agent session is an actor operating inside the continuity substrate. It is not the substrate. Chat history is not the substrate. A session lifecycle is not the substrate.
 
-The substrate is:
+The substrate is now defined by the ActiveGraph-style contract:
 
 ```txt
-immutable events
-  -> proposed and accepted patches
-    -> branch-scoped continuity graph
-      -> reactive behaviors
-        -> commands, model turns, tool calls, and more events
+append-only continuity events
+  -> replayable object/relation graph projection
+    -> scoped views
+      -> reactive behaviors and relation behaviors
+        -> patches, approvals, commands, model turns, tool calls, and more events
 ```
 
-The event log records what happened. Accepted patches record what changed. The graph represents what is true for a branch. Behaviors react to accepted graph changes. Branches represent alternate operational realities for retries, simulations, experiments, and policy comparison.
+The event log is the only durable source of truth. Objects, relations, patches, approvals, frames, branches, and runtime status are projections of ordered events. Patches are still important, but they are events with lifecycle, not a separate source of truth. Behaviors react to events and graph shape. Relation behaviors attach logic to typed edges. Branches and forks represent alternate operational realities for retries, simulations, experiments, and policy comparison.
 
 ## Design Rejections
 
@@ -26,17 +26,17 @@ Reject `graph as memory`.
 
 The continuity graph is not a memory feature. It is the operating reality of the system: goals, tasks, claims, evidence, capabilities, devices, modalities, policies, approvals, failures, artifacts, runtime versions, and branches.
 
-Reject `graph as a query index over events`.
+Reject `graph tables as durable truth`.
 
-The graph is replayable from events and patches, but it is not merely an index. It is the materialized state that behaviors and agents operate against.
+The graph is materialized state that behaviors and agents operate against, but it must be rebuildable from the event log. Direct mutation of graph objects, relations, patches, or approvals outside the event projector is architectural drift.
 
 Reject `each subsystem owns its own truth`.
 
 Browser sessions, computer sessions, calibration, safety, tools, artifacts, devices, modalities, and model/runtime versions must project into a shared continuity substrate. Subsystems may own adapters and controllers, but accepted operational truth belongs in the continuity graph.
 
-Reject `untyped metadata-only graph`.
+Reject `closed enum ontology`.
 
-Generic `kind + metadata_json` nodes are useful for extensibility, but core operational concepts require typed overlays and constraints. Claims, tasks, policies, approvals, failures, capabilities, and evaluations must be queryable without parsing arbitrary JSON.
+The kernel owns generic graph objects and relations: `{ id, type, data, version, provenance }` and `{ id, sourceId, targetId, type, data, provenance }`. Domain packages own typed overlays and validators for claims, tasks, policies, approvals, failures, capabilities, modalities, devices, and evaluations. The kernel must not require a central enum edit for every new domain concept.
 
 Reject `silent mutation`.
 
@@ -44,9 +44,9 @@ Risky belief changes, policy changes, calibration changes, capability changes, a
 
 ## Required Package Refactors
 
-### Add `packages/continuity`
+### `packages/continuity`
 
-Owns the continuity types, patch model, graph stores, projection engine, behavior engine, branch operations, and graph queries.
+Owns the event-sourced graph runtime: events, object/relation projection, patch lifecycle events, frames, views, behavior dispatch, relation behaviors, replay, branch/fork operations, policy gates, and graph query helpers.
 
 ### Recenter Runtime Around `ContinuityKernel`
 
@@ -64,13 +64,12 @@ Owns the continuity types, patch model, graph stores, projection engine, behavio
 
 ### Rename `packages/peripherals` To `packages/modalities`
 
-The code models modalities, not generic peripherals. Keeping the old package name preserves conceptual drift. The rename must be handled as a compatibility migration:
+The code models modalities, not generic peripherals. Keeping the old package name preserves conceptual drift. The package must be renamed directly:
 
 - create `packages/modalities`
 - move registry and bridge code
-- keep a temporary `@exocortex/peripherals` package that re-exports from `@exocortex/modalities`
 - update imports package by package
-- remove the compatibility package only after all local imports use `@exocortex/modalities`
+- remove `@exocortex/peripherals`
 
 ### Split `packages/session`
 
@@ -1145,7 +1144,6 @@ Status: partially implemented. `@exocortex/continuity` includes operational-stat
 Deliverables:
 
 - `packages/modalities`
-- compatibility re-export from `@exocortex/peripherals`
 - `packages/events`
 - `packages/agents`
 - `packages/capabilities`
@@ -1154,7 +1152,7 @@ Deliverables:
 Acceptance:
 
 - `npm run validate` passes after each package move
-- compatibility package contains no runtime logic
+- `@exocortex/peripherals` no longer exists
 - no local imports use old package name once migration completes
 
 ## Test Matrix

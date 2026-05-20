@@ -20,11 +20,11 @@ The application is an agent runtime first. The frontend is another agent-managed
 ## Agent Core
 
 - The long-term center of the architecture is a `ContinuityKernel`, not a chat loop or session manager.
-- Events record immutable history; accepted patches record state changes; the continuity graph represents branch-scoped operational reality.
-- Behaviors react to accepted graph changes and propose patches or commands.
+- Events are the immutable durable source of truth; objects, relations, patches, approvals, frames, branches, and graph views are replayable projections.
+- Behaviors and relation behaviors react to events and graph shape, then emit more events or propose/apply/reject patches.
 - Branches represent alternate graph realities for retries, simulations, policy comparisons, and self-improvement experiments.
 - Continuity stores must support in-memory tests and SQLite-backed local persistence.
-- Continuity projection must deterministically convert session events into accepted graph patches.
+- Continuity projection must deterministically convert session and host events into graph events that replay to the same object/relation state.
 - Agent sessions must carry a branch id and project emitted events into that branch when a continuity kernel is attached.
 - `agent_sessions` as the unit of execution.
 - `agent_session_events` as append-only event logs.
