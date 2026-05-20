@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { BrowserSessionManager, type BrowserController } from "@exocortex/browser-session";
 import { EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, InMemoryEventSourcedGraphStore } from "@exocortex/continuity";
 import type { ChatModel, ChatRequest, ChatStreamEvent } from "@exocortex/models";
-import { ModalityRegistry } from "@exocortex/modalities";
+import { ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ModelRouter } from "@exocortex/models";
 import { ModelDrivenAgentRuntime, type AgentRuntimeContext } from "./agent-runtime.js";
 import { createBrowserAgentTools } from "./browser-tools.js";
 import { ModalityActionRouter, type ModalityActionSink } from "./modality-action-router.js";
+import { ModalityObservationRouter } from "./modality-router.js";
 import { AgentSessionManager } from "./session-manager.js";
 import { AgentToolRouter } from "./tool-router.js";
 
@@ -60,7 +61,7 @@ const actionRouter = new ModalityActionRouter(actionManager, {
   }
 });
 const actionSession = actionManager.create({ goal: "Actuate" });
-const outputBinding = registry.bindToSession({ sessionId: actionSession.id, modalityInstanceId: modalityInstances[0]!.id });
+const outputBinding = registry.bindToSession({ sessionId: actionSession.id, modalityInstanceId: modalityInstances[0]!.id, policy: "control" });
 actionManager.bindModality(actionSession.id, outputBinding);
 const sent: Array<{ actionType: string; value: unknown }> = [];
 const sink: ModalityActionSink = {
@@ -84,6 +85,29 @@ await new Promise((resolve) => setTimeout(resolve, 0));
 assert.deepEqual(routedErrors, ["sink rejected action"]);
 assert.ok(actionManager.events(actionSession.id).some((event) => event.type === "session.error" && event.code === "modality_action_failed"));
 actionRouter.stop();
+
+const routeManager = new AgentSessionManager();
+const routeSession = routeManager.create({ goal: "Route modalities" });
+const routeBinding = registry.bindToSession({ sessionId: routeSession.id, modalityInstanceId: modalityInstances[0]!.id, policy: "observe" });
+routeManager.bindModality(routeSession.id, routeBinding);
+await routeManager.start(routeSession.id);
+const routeObservationRouter = new ModalityObservationRouter(routeManager);
+const routeBridge = new ManualInputBridge(modalityInstances[0]!);
+routeObservationRouter.attachBridge(routeBridge);
+routeObservationRouter.bindSession(routeSession.id, routeManager.listBindings(routeSession.id));
+await routeObservationRouter.startAll();
+routeBridge.injectText("first");
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(routeManager.events(routeSession.id).some((event) => event.type === "modality.observation" && (event.value as { text?: string }).text === "first"));
+const disabledBinding = routeManager.updateModalityBindingPolicy(routeSession.id, routeBinding.id, "disabled");
+routeObservationRouter.bindSession(routeSession.id, routeManager.listBindings(routeSession.id));
+assert.equal(disabledBinding.policy, "disabled");
+routeBridge.injectText("blocked");
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(routeManager.events(routeSession.id).some((event) => event.type === "modality.observation" && (event.value as { text?: string }).text === "blocked"), false);
+assert.ok(routeManager.events(routeSession.id).some((event) => event.type === "session.modality_policy_changed" && event.nextPolicy === "disabled"));
+await routeObservationRouter.stopAll();
+routeManager.stop(routeSession.id);
 
 class ToolCallingModel implements ChatModel {
   readonly id = "tool-model";

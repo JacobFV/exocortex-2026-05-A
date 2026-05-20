@@ -8,6 +8,7 @@ declare global {
       listSessions(): Promise<unknown[]>;
       listEvents(sessionId: string): Promise<unknown[]>;
       listBindings(sessionId: string): Promise<unknown[]>;
+      updateModalityRoute(sessionId: string, bindingId: string, policy: string): Promise<unknown>;
       listArtifacts(sessionId: string): Promise<unknown[]>;
       listMediaProviders(): Promise<unknown>;
       captureMedia(sessionId: string, kind: "image" | "audio" | "video", options?: unknown): Promise<unknown>;

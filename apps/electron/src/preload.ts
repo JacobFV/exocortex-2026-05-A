@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("exocortex", {
   listSessions: () => ipcRenderer.invoke("exocortex:list-sessions"),
   listEvents: (sessionId: string) => ipcRenderer.invoke("exocortex:list-events", sessionId),
   listBindings: (sessionId: string) => ipcRenderer.invoke("exocortex:list-bindings", sessionId),
+  updateModalityRoute: (sessionId: string, bindingId: string, policy: string) => ipcRenderer.invoke("exocortex:update-modality-route", sessionId, bindingId, policy),
   listArtifacts: (sessionId: string) => ipcRenderer.invoke("exocortex:list-artifacts", sessionId),
   listMediaProviders: () => ipcRenderer.invoke("exocortex:list-media-providers"),
   captureMedia: (sessionId: string, kind: "image" | "audio" | "video", options?: unknown) => ipcRenderer.invoke("exocortex:capture-media", sessionId, kind, options),

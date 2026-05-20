@@ -647,23 +647,39 @@ export function renderHtml(): string {
         const modalities = state.modalities.modalities || [];
         const bindings = state.bindings || [];
         const bindingByModality = new Map(bindings.map(function (binding) { return [binding.modalityInstanceId, binding]; }));
+        const policies = ['observe', 'control', 'observe_and_control', 'disabled'];
         const rows = modalities.map(function (modality) {
           const binding = bindingByModality.get(modality.id);
+          const policyControl = binding
+            ? '<select data-action="route-policy" data-binding-id="' + escapeHtml(binding.id) + '">' + policies.map(function (policy) {
+                return '<option value="' + policy + '"' + (binding.policy === policy ? ' selected' : '') + '>' + policy + '</option>';
+              }).join('') + '</select>'
+            : '<span class="pill">unbound</span>';
+          const routeHealth = binding
+            ? binding.policy === 'disabled'
+              ? '<span class="pill red">blocked</span>'
+              : binding.policy === 'observe'
+                ? '<span class="pill green">observing</span>'
+                : binding.policy === 'control'
+                  ? '<span class="pill amber">controlling</span>'
+                  : '<span class="pill green">duplex</span>'
+            : '<span class="pill">unbound</span>';
           return '<tr>' +
             '<td><strong>' + escapeHtml(modality.key) + '</strong><br><span class="muted">' + escapeHtml(shortId(modality.id)) + '</span></td>' +
             '<td>' + escapeHtml(modality.source) + '</td>' +
             '<td>' + escapeHtml(modality.direction) + '</td>' +
             '<td>' + escapeHtml(modality.kind) + '</td>' +
             '<td>' + escapeHtml(modality.state) + '</td>' +
-            '<td>' + (binding ? '<span class="pill green">' + escapeHtml(binding.policy) + '</span>' : '<span class="pill">unbound</span>') + '</td>' +
+            '<td>' + policyControl + '</td>' +
+            '<td>' + routeHealth + '</td>' +
           '</tr>';
         }).join('');
         el('#view-modalities').innerHTML =
           '<section class="panel">' +
             '<div class="panel-header"><h2>Device And Modality Graph</h2><span class="pill">' + modalities.length + ' modalities</span></div>' +
             '<div class="panel-body">' +
-              '<table><thead><tr><th>Key</th><th>Source</th><th>Direction</th><th>Kind</th><th>State</th><th>Session Policy</th></tr></thead><tbody>' +
-              (rows || '<tr><td colspan="6">No modalities</td></tr>') +
+              '<table><thead><tr><th>Key</th><th>Source</th><th>Direction</th><th>Kind</th><th>State</th><th>Route Policy</th><th>Route Health</th></tr></thead><tbody>' +
+              (rows || '<tr><td colspan="7">No modalities</td></tr>') +
               '</tbody></table>' +
             '</div>' +
           '</section>' +
@@ -953,6 +969,20 @@ export function renderHtml(): string {
             state.graphFilter = el('#graph-filter').value;
             renderGraph();
           }
+        } catch (error) {
+          setStatus(error instanceof Error ? error.message : String(error), true);
+        }
+      });
+
+      document.body.addEventListener('change', async function (event) {
+        const select = event.target.closest('select[data-action="route-policy"]');
+        if (!select) return;
+        const session = selectedSession();
+        const bindingId = select.dataset.bindingId;
+        if (!session || !bindingId) return;
+        try {
+          await window.exocortex.updateModalityRoute(session.id, bindingId, select.value);
+          await refresh();
         } catch (error) {
           setStatus(error instanceof Error ? error.message : String(error), true);
         }

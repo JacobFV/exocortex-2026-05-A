@@ -22,6 +22,7 @@ for (const action of [
   "transcribe-artifact",
   "arm-actuator",
   "send-action",
+  "route-policy",
   "accept-calibration",
   "apply-graph-filter"
 ]) {
@@ -34,6 +35,7 @@ for (const preloadApi of [
   "listSessions",
   "listEvents",
   "listBindings",
+  "updateModalityRoute",
   "listArtifacts",
   "listMediaProviders",
   "captureMedia",

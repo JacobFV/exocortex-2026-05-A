@@ -69,6 +69,7 @@ export class ModalityObservationRouter {
         ? bindings.find((candidate) => candidate.id === observation.bindingId)
         : bindings.find((candidate) => candidate.modalityInstanceId === observation.modalityInstanceId);
       if (!binding) continue;
+      if (binding.policy === "disabled" || binding.policy === "control") continue;
       const session = this.sessions.get(sessionId);
       if (!session || session.state !== "running") continue;
       this.sessions.observe(sessionId, binding.id, observation.observationType, observation.value, observation.observedAt);

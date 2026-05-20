@@ -10,6 +10,7 @@ import type {
   ComputerSessionId,
   ToolCallId
 } from "./id.js";
+import type { ModalityBindingPolicy } from "./modality.js";
 import type { AgentRuntimeRef, AgentSessionState } from "./session.js";
 
 export interface EventBase {
@@ -24,6 +25,7 @@ export interface EventBase {
 export type AgentSessionEvent =
   | (EventBase & { type: "session.created"; goal: string; runtime?: AgentRuntimeRef })
   | (EventBase & { type: "session.modality_bound"; bindingId: AgentSessionModalityId; key: string })
+  | (EventBase & { type: "session.modality_policy_changed"; bindingId: AgentSessionModalityId; key: string; previousPolicy: ModalityBindingPolicy; nextPolicy: ModalityBindingPolicy })
   | (EventBase & { type: "session.state_changed"; previousState: AgentSessionState; nextState: AgentSessionState })
   | (EventBase & { type: "message.delta"; role: "assistant" | "user" | "system"; text: string; source?: string })
   | (EventBase & { type: "message.completed"; role: "assistant" | "user" | "system"; text: string; source?: string })

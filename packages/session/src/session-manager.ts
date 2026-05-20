@@ -17,6 +17,7 @@ import {
   type BrowserProjectionFrame,
   type BrowserSessionId
 } from "@exocortex/protocol";
+import type { ModalityBindingPolicy } from "@exocortex/protocol";
 import type { AgentRuntime } from "./agent-runtime.js";
 import { ModelDrivenAgentRuntime } from "./agent-runtime.js";
 import type { AgentSessionEventListener, AgentSessionStore } from "./event-store.js";
@@ -147,6 +148,34 @@ export class AgentSessionManager {
       modalityBindings: next
     });
     this.emit(sessionId, { type: "session.modality_bound", bindingId: binding.id, key: binding.key, modalityId: binding.id, metadata: { binding } });
+  }
+
+  updateModalityBindingPolicy(sessionId: AgentSessionId, bindingId: AgentSessionModalityId, nextPolicy: ModalityBindingPolicy): AgentSessionModalityBinding {
+    this.requireSession(sessionId);
+    const current = this.bindings.get(sessionId) ?? [];
+    const index = current.findIndex((candidate) => candidate.id === bindingId);
+    if (index < 0) throw new Error(`Unknown modality binding for session ${sessionId}: ${bindingId}`);
+    const previous = current[index]!;
+    if (previous.policy === nextPolicy) return { ...previous, capabilities: [...previous.capabilities] };
+    const next = current.map((binding, candidateIndex) =>
+      candidateIndex === index ? { ...binding, policy: nextPolicy, metadata: { ...(binding.metadata ?? {}), policyUpdatedAt: new Date().toISOString() } } : binding
+    );
+    this.bindings.set(sessionId, next);
+    this.patch(sessionId, {
+      modalityBindings: next,
+      modalityBindingIds: next.map((candidate) => candidate.id)
+    });
+    const updated = next[index]!;
+    this.emit(sessionId, {
+      type: "session.modality_policy_changed",
+      bindingId,
+      modalityId: bindingId,
+      key: updated.key,
+      previousPolicy: previous.policy,
+      nextPolicy,
+      metadata: { binding: updated }
+    });
+    return { ...updated, capabilities: [...updated.capabilities] };
   }
 
   observe(
@@ -296,7 +325,8 @@ export class AgentSessionManager {
   private copyBindings(sessionId: AgentSessionId): AgentSessionModalityBinding[] {
     return (this.bindings.get(sessionId) ?? []).map((binding) => ({
       ...binding,
-      capabilities: [...binding.capabilities]
+      capabilities: [...binding.capabilities],
+      metadata: binding.metadata ? { ...binding.metadata } : undefined
     }));
   }
 

@@ -41,6 +41,7 @@ export class ModalityActionRouter {
   private async route(event: Extract<AgentSessionEvent, { type: "modality.action" }>): Promise<void> {
     const binding = this.bindings.get(event.bindingId);
     if (!binding) return;
+    if (binding.policy === "disabled" || binding.policy === "observe") return;
     const sink = this.sinks.get(binding.modalityInstanceId);
     if (!sink) return;
     try {

@@ -7,7 +7,7 @@ import { type CalibrationProfile, validateCalibrationProfile } from "@exocortex/
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import { MediaRouter, type CapturedMedia } from "@exocortex/media";
 import { ModelRouter } from "@exocortex/models";
-import type { AgentSessionArtifact, AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
+import type { AgentSessionArtifact, AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId, ModalityBindingPolicy } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ActuatorSafetyGate } from "@exocortex/safety";
 import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, FileArtifactBlobStore, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter, SQLiteAgentSessionStore } from "@exocortex/session";
@@ -176,6 +176,13 @@ ipcMain.handle("exocortex:stop-session", (_event, sessionId: AgentSessionId) => 
 ipcMain.handle("exocortex:list-sessions", () => sessionManager.list());
 ipcMain.handle("exocortex:list-events", (_event, sessionId: AgentSessionId) => sessionManager.events(sessionId));
 ipcMain.handle("exocortex:list-bindings", (_event, sessionId: AgentSessionId) => sessionManager.listBindings(sessionId));
+ipcMain.handle("exocortex:update-modality-route", (_event, sessionId: AgentSessionId, bindingId: AgentSessionModalityId, policy: ModalityBindingPolicy) => {
+  const updated = sessionManager.updateModalityBindingPolicy(sessionId, bindingId, policy);
+  const bindings = sessionManager.listBindings(sessionId);
+  observationRouter.bindSession(sessionId, bindings);
+  actionRouter.bindSession(bindings);
+  return updated;
+});
 ipcMain.handle("exocortex:list-artifacts", (_event, sessionId: AgentSessionId) => sessionManager.artifacts(sessionId));
 ipcMain.handle("exocortex:list-media-providers", () => mediaRouter.list());
 ipcMain.handle("exocortex:capture-media", async (_event, sessionId: AgentSessionId, kind: "image" | "audio" | "video", options: { providerId?: string; deviceId?: string; durationMs?: number } = {}) => {
