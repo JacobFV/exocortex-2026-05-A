@@ -7,3 +7,4 @@ dist/
 coverage/
 *.log
 refs/command-agi-gamma/
+refs/activegraph/
