@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { OpenAICompatibleChatModel } from "./openai-compatible.js";
 import { ModelRouter } from "./model-router.js";
 import { streamUtf8Lines } from "./stream-utils.js";
+import { redactLiveSmokeError, runLiveModelSmoke } from "./live-smoke.js";
 
 const router = new ModelRouter([{ id: "local", provider: "local_rules" }]);
 assert.deepEqual(router.list(), [{ id: "local", provider: "local_rules" }]);
@@ -40,6 +41,13 @@ const llamaRouter = new ModelRouter([
   { id: "llama", provider: "llama_cpp_cli", command: "llama-cli", args: ["--version"] }
 ]);
 assert.equal((await llamaRouter.health("llama"))[0]?.status, "configured");
+
+const smokeRouter = new ModelRouter([{ id: "local", provider: "local_rules" }]);
+const smokeResult = await runLiveModelSmoke(smokeRouter, { modelId: "local", requireOptIn: false, prompt: "hello" });
+assert.equal(smokeResult.ok, true);
+assert.equal(smokeResult.modelId, "local");
+assert.match(redactLiveSmokeError("Authorization: Bearer sk-secret and api_key=sk-another"), /REDACTED/);
+assert.doesNotMatch(redactLiveSmokeError("Authorization: Bearer sk-secret and api_key=sk-another"), /sk-secret|sk-another/);
 
 {
   const originalFetch = globalThis.fetch;

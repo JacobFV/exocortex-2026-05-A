@@ -1,5 +1,6 @@
 export * from "./llama-cpp-cli.js";
 export * from "./local-rules.js";
+export * from "./live-smoke.js";
 export * from "./model-router.js";
 export * from "./ollama.js";
 export * from "./openai-compatible.js";
