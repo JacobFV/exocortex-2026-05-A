@@ -4,9 +4,9 @@ import {
   LocalCommandVideoCaptureProvider,
   localCommandCaptureConfigFromEnv
 } from "./local-command-capture.js";
-import { MacOSSayTTSProvider } from "./local-command-audio.js";
+import { LocalCommandAudioPlaybackProvider, MacOSSayTTSProvider, localCommandAudioPlaybackConfigFromEnv } from "./local-command-audio.js";
 import { OpenAISTTProvider, OpenAITTSProvider } from "./openai-audio.js";
-import type { AudioCaptureProvider, ImageCaptureProvider, STTProvider, TTSProvider, VideoCaptureProvider } from "./types.js";
+import type { AudioCaptureProvider, AudioPlaybackProvider, ImageCaptureProvider, STTProvider, TTSProvider, VideoCaptureProvider } from "./types.js";
 
 export class MediaRouter {
   private readonly sttProviders = new Map<string, STTProvider>();
@@ -14,6 +14,7 @@ export class MediaRouter {
   private readonly imageCaptureProviders = new Map<string, ImageCaptureProvider>();
   private readonly audioCaptureProviders = new Map<string, AudioCaptureProvider>();
   private readonly videoCaptureProviders = new Map<string, VideoCaptureProvider>();
+  private readonly audioPlaybackProviders = new Map<string, AudioPlaybackProvider>();
 
   constructor() {
     this.registerSTT(new OpenAISTTProvider({ id: "openai-stt" }));
@@ -25,6 +26,8 @@ export class MediaRouter {
     if (audioCapture) this.registerAudioCapture(new LocalCommandAudioCaptureProvider(audioCapture));
     const videoCapture = localCommandCaptureConfigFromEnv("video");
     if (videoCapture) this.registerVideoCapture(new LocalCommandVideoCaptureProvider(videoCapture));
+    const audioPlayback = localCommandAudioPlaybackConfigFromEnv();
+    if (audioPlayback) this.registerAudioPlayback(new LocalCommandAudioPlaybackProvider(audioPlayback));
   }
 
   registerSTT(provider: STTProvider): void {
@@ -45,6 +48,10 @@ export class MediaRouter {
 
   registerVideoCapture(provider: VideoCaptureProvider): void {
     this.videoCaptureProviders.set(provider.id, provider);
+  }
+
+  registerAudioPlayback(provider: AudioPlaybackProvider): void {
+    this.audioPlaybackProviders.set(provider.id, provider);
   }
 
   stt(id = process.env.EXOCORTEX_STT_PROVIDER ?? "openai-stt"): STTProvider {
@@ -77,13 +84,20 @@ export class MediaRouter {
     return provider;
   }
 
-  list(): { stt: string[]; tts: string[]; imageCapture: string[]; audioCapture: string[]; videoCapture: string[] } {
+  audioPlayback(id = process.env.EXOCORTEX_AUDIO_PLAYBACK_PROVIDER ?? (process.platform === "darwin" ? "macos-afplay" : "local-command-audio-playback")): AudioPlaybackProvider {
+    const provider = this.audioPlaybackProviders.get(id);
+    if (!provider) throw new Error(`Unknown audio playback provider: ${id}`);
+    return provider;
+  }
+
+  list(): { stt: string[]; tts: string[]; imageCapture: string[]; audioCapture: string[]; videoCapture: string[]; audioPlayback: string[] } {
     return {
       stt: [...this.sttProviders.keys()],
       tts: [...this.ttsProviders.keys()],
       imageCapture: [...this.imageCaptureProviders.keys()],
       audioCapture: [...this.audioCaptureProviders.keys()],
-      videoCapture: [...this.videoCaptureProviders.keys()]
+      videoCapture: [...this.videoCaptureProviders.keys()],
+      audioPlayback: [...this.audioPlaybackProviders.keys()]
     };
   }
 }

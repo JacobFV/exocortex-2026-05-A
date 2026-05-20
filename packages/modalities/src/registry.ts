@@ -121,6 +121,38 @@ export class ModalityRegistry {
       defaultPolicy: "control"
     });
     this.registerModalityType({
+      key: "host_microphone_audio",
+      label: "Host microphone audio capture",
+      direction: "input",
+      kind: "audio",
+      capabilities: ["audio.capture", "artifact.media"],
+      defaultPolicy: "observe"
+    });
+    this.registerModalityType({
+      key: "host_camera_image",
+      label: "Host camera image capture",
+      direction: "input",
+      kind: "image",
+      capabilities: ["image.capture", "artifact.media"],
+      defaultPolicy: "observe"
+    });
+    this.registerModalityType({
+      key: "host_camera_video",
+      label: "Host camera video capture",
+      direction: "input",
+      kind: "video",
+      capabilities: ["video.capture", "artifact.media"],
+      defaultPolicy: "observe"
+    });
+    this.registerModalityType({
+      key: "host_speaker_audio",
+      label: "Host speaker audio output",
+      direction: "output",
+      kind: "audio",
+      capabilities: ["audio.playback", "speech.synthesis", "artifact.media"],
+      defaultPolicy: "control"
+    });
+    this.registerModalityType({
       key: "browser_projected_screen",
       label: "Browser projected screen",
       direction: "output",
@@ -172,6 +204,10 @@ export class ModalityRegistry {
     return [
       this.createModalityInstance({ typeKey: "app_input_text", deviceId: host.id, source: "app", transport: "local" }),
       this.createModalityInstance({ typeKey: "device_mic_stt_input_text", deviceId: host.id, source: "host_device", transport: "local" }),
+      this.createModalityInstance({ typeKey: "host_microphone_audio", deviceId: host.id, source: "host_device", transport: "local" }),
+      this.createModalityInstance({ typeKey: "host_camera_image", deviceId: host.id, source: "host_device", transport: "local" }),
+      this.createModalityInstance({ typeKey: "host_camera_video", deviceId: host.id, source: "host_device", transport: "local" }),
+      this.createModalityInstance({ typeKey: "host_speaker_audio", deviceId: host.id, source: "host_device", transport: "local" }),
       this.createModalityInstance({ typeKey: "ext_mic_1_stt_input_text", deviceId: serialBridge.id, source: "external_device", transport: "serial" }),
       this.createModalityInstance({ typeKey: "ext_mic_2_stt_input_text", deviceId: serialBridge.id, source: "external_device", transport: "serial" })
     ];

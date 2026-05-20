@@ -2,7 +2,7 @@ import type { AgentSessionEvent, AgentSessionModalityBinding, AgentSessionModali
 import type { AgentSessionManager } from "./session-manager.js";
 
 export interface ModalityActionSink {
-  send(actionType: string, value: unknown): Promise<void>;
+  send(actionType: string, value: unknown, event?: Extract<AgentSessionEvent, { type: "modality.action" }>): Promise<void>;
 }
 
 export interface ModalityActionRouterOptions {
@@ -45,7 +45,7 @@ export class ModalityActionRouter {
     const sink = this.sinks.get(binding.modalityInstanceId);
     if (!sink) return;
     try {
-      await sink.send(event.actionType, event.value);
+      await sink.send(event.actionType, event.value, event);
     } catch (error) {
       this.options.onActionError?.(event, error);
     }

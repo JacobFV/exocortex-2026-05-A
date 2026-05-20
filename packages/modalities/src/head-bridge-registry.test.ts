@@ -20,6 +20,13 @@ assert.ok(expoInstances.some((instance) => instance.key === "expo_device_microph
 assert.ok(expoInstances.some((instance) => instance.key === "expo_device_camera_video" && instance.direction === "duplex"));
 assert.ok(expoInstances.some((instance) => instance.key === "expo_device_speaker_audio" && instance.direction === "output"));
 
+const hostRegistry = new ModalityRegistry();
+const hostInstances = hostRegistry.createDefaultHostGraph();
+assert.ok(hostInstances.some((instance) => instance.key === "host_camera_image" && instance.kind === "image"));
+assert.ok(hostInstances.some((instance) => instance.key === "host_camera_video" && instance.kind === "video"));
+assert.ok(hostInstances.some((instance) => instance.key === "host_microphone_audio" && instance.kind === "audio"));
+assert.ok(hostInstances.some((instance) => instance.key === "host_speaker_audio" && instance.direction === "output"));
+
 assert.deepEqual(
   normalizeHeadBridgeFrameValue({
     channel: "battery_voltage",

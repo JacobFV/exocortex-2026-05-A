@@ -139,6 +139,7 @@ if (headBridgeSerialPath) {
     });
   }
 }
+registerHostSpeakerSink();
 actionRouter.start();
 
 void observationRouter.startAll().catch((error) => {
@@ -195,7 +196,9 @@ ipcMain.handle("exocortex:capture-media", async (_event, sessionId: AgentSession
     : kind === "audio"
       ? await mediaRouter.audioCapture(options.providerId).captureAudio({ deviceId: options.deviceId, durationMs: options.durationMs })
       : await mediaRouter.videoCapture(options.providerId).captureVideo({ deviceId: options.deviceId, durationMs: options.durationMs });
-  return createMediaArtifact(sessionId, kind, captured);
+  const artifact = createMediaArtifact(sessionId, kind, captured);
+  recordMediaObservation(sessionId, mediaCaptureModalityKey(kind), artifact, captured);
+  return artifact;
 });
 ipcMain.handle("exocortex:synthesize-speech", async (_event, sessionId: AgentSessionId, text: string, providerId?: string) => {
   const speech = await mediaRouter.tts(providerId).synthesize(text);
@@ -450,6 +453,79 @@ function createMediaArtifact(sessionId: AgentSessionId, kind: "image" | "audio" 
     }
   });
   return sessionManager.createArtifact(stored.artifact);
+}
+
+function registerHostSpeakerSink(): void {
+  const speaker = modalityRegistry.getModalityByKey("host_speaker_audio");
+  if (!speaker) return;
+  actionRouter.registerSink(speaker.id, {
+    async send(actionType, value, event) {
+      if (!event) throw new Error("Host speaker action requires session event context");
+      if (actionType === "speech.speak") {
+        const text = typeof value === "string" ? value : value && typeof value === "object" && "text" in value ? String((value as { text?: unknown }).text ?? "") : "";
+        if (!text.trim()) throw new Error("speech.speak requires non-empty text");
+        const speech = await mediaRouter.tts().synthesize(text);
+        const data = speech.data ?? (speech.filePath ? await import("node:fs").then((fs) => fs.readFileSync(speech.filePath!)) : undefined);
+        if (!data) throw new Error("TTS provider did not return audio data or filePath");
+        const stored = artifactBlobStore.put({
+          sessionId: event.sessionId,
+          kind: "audio",
+          title: "Spoken speech",
+          data,
+          mimeType: speech.mimeType,
+          metadata: { actionType, durationMs: speech.durationMs, ...(speech.metadata ?? {}) }
+        });
+        const artifact = sessionManager.createArtifact(stored.artifact);
+        await mediaRouter.audioPlayback().playAudio({ data, mimeType: speech.mimeType, filename: artifact.title });
+        recordMediaObservation(event.sessionId, "host_speaker_audio", artifact, undefined, "audio.played");
+        return;
+      }
+      if (actionType === "audio.play") {
+        const artifactId = value && typeof value === "object" && "artifactId" in value ? String((value as { artifactId?: unknown }).artifactId ?? "") : "";
+        if (!artifactId) throw new Error("audio.play requires artifactId");
+        const artifact = sessionManager.artifacts(event.sessionId).find((candidate) => candidate.id === artifactId);
+        if (!artifact) throw new Error(`Unknown audio artifact for playback: ${artifactId}`);
+        const data = artifactBlobStore.read(artifact);
+        await mediaRouter.audioPlayback().playAudio({ data, mimeType: artifact.mimeType ?? "audio/wav", filename: artifact.title });
+        recordMediaObservation(event.sessionId, "host_speaker_audio", artifact, undefined, "audio.played");
+        return;
+      }
+      throw new Error(`Unsupported host speaker action: ${actionType}`);
+    }
+  });
+}
+
+function recordMediaObservation(
+  sessionId: AgentSessionId,
+  modalityKey: string,
+  artifact: AgentSessionArtifact,
+  captured?: CapturedMedia,
+  observationType = "media.artifact"
+): void {
+  const binding = sessionManager.listBindings(sessionId).find((candidate) => candidate.key === modalityKey);
+  if (!binding) return;
+  sessionManager.observe(
+    sessionId,
+    binding.id,
+    observationType,
+    {
+      artifactId: artifact.id,
+      kind: artifact.kind,
+      title: artifact.title,
+      mimeType: artifact.mimeType,
+      uri: artifact.uri,
+      bytes: artifact.bytes,
+      capturedAt: captured?.capturedAt ?? artifact.createdAt,
+      metadata: artifact.metadata
+    },
+    captured?.capturedAt
+  );
+}
+
+function mediaCaptureModalityKey(kind: "image" | "audio" | "video"): string {
+  if (kind === "image") return "host_camera_image";
+  if (kind === "video") return "host_camera_video";
+  return "host_microphone_audio";
 }
 
 function createBrowserFrameArtifact(sessionId: AgentSessionId, frame: BrowserProjectionFrame): AgentSessionArtifact {

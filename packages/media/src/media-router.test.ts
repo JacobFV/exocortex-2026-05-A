@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
-import { rmSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  LocalCommandAudioPlaybackProvider,
+  localCommandAudioPlaybackConfigFromEnv
+} from "./local-command-audio.js";
 import {
   LocalCommandAudioCaptureProvider,
   LocalCommandImageCaptureProvider,
@@ -63,6 +66,17 @@ try {
   assert.ok(router.list().audioCapture.includes("test-audio"));
   assert.ok(router.list().videoCapture.includes("test-video"));
 
+  const playbackLog = join(fixtureDir, "playback.log");
+  const playbackProvider = new LocalCommandAudioPlaybackProvider({
+    id: "test-playback",
+    command: process.execPath,
+    args: ["-e", "import { appendFileSync, readFileSync } from 'node:fs'; appendFileSync(process.argv[1], readFileSync(process.argv[2]));", playbackLog, "{input}"]
+  });
+  router.registerAudioPlayback(playbackProvider);
+  await playbackProvider.playAudio({ data: new TextEncoder().encode("sound"), mimeType: "audio/wav", filename: "sound.wav" });
+  assert.equal(new TextDecoder().decode(readFileSync(playbackLog)), "sound");
+  assert.ok(router.list().audioPlayback.includes("test-playback"));
+
   const envConfig = localCommandCaptureConfigFromEnv("image", {
     EXOCORTEX_IMAGE_CAPTURE_COMMAND: process.execPath,
     EXOCORTEX_IMAGE_CAPTURE_ARGS: JSON.stringify(["-e", writeFixture, "{output}"]),
@@ -72,6 +86,12 @@ try {
   assert.equal(envConfig?.command, process.execPath);
   assert.equal(envConfig?.mimeType, "image/jpeg");
   assert.deepEqual(envConfig?.args, ["-e", writeFixture, "{output}"]);
+
+  const playbackConfig = localCommandAudioPlaybackConfigFromEnv({
+    EXOCORTEX_AUDIO_PLAYBACK_COMMAND: process.execPath,
+    EXOCORTEX_AUDIO_PLAYBACK_ARGS: JSON.stringify(["-e", ""])
+  });
+  assert.equal(playbackConfig?.command, process.execPath);
 } finally {
   rmSync(fixtureDir, { recursive: true, force: true });
 }

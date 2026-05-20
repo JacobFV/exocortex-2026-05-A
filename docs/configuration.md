@@ -29,6 +29,7 @@ npm run dev:electron
 - `EXOCORTEX_LLAMA_CPP_COMMAND` and `EXOCORTEX_LLAMA_CPP_ARGS` enable llama.cpp CLI models.
 - `EXOCORTEX_HEAD_BRIDGE_SERIAL` and `EXOCORTEX_HEAD_BRIDGE_BAUD` attach the live ESP/head bridge.
 - `EXOCORTEX_IMAGE_CAPTURE_COMMAND`, `EXOCORTEX_AUDIO_CAPTURE_COMMAND`, and `EXOCORTEX_VIDEO_CAPTURE_COMMAND` register command-backed capture providers.
+- `EXOCORTEX_AUDIO_PLAYBACK_COMMAND` registers command-backed audio playback for host speaker actions.
 - `EXOCORTEX_STT_BRIDGE_ENABLED=1` starts the Electron continuous STT bridge, using configured audio capture and STT providers to feed microphone transcript modalities.
 - `EXOCORTEX_EVENT_GRAPH_DB`, `EXOCORTEX_AGENT_SESSION_DB`, and `EXOCORTEX_ARTIFACT_BLOB_DIR` override durable local storage paths.
 

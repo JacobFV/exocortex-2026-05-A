@@ -19,6 +19,12 @@ export interface SpeechOutput {
   metadata?: Record<string, unknown>;
 }
 
+export interface AudioPlaybackResult {
+  playedAt: string;
+  durationMs?: number;
+  metadata?: Record<string, unknown>;
+}
+
 export interface CapturedMedia {
   data: Uint8Array;
   filePath: string;
@@ -44,6 +50,11 @@ export interface STTProvider {
 export interface TTSProvider {
   readonly id: string;
   synthesize(text: string, signal?: AbortSignal): Promise<SpeechOutput>;
+}
+
+export interface AudioPlaybackProvider {
+  readonly id: string;
+  playAudio(input: AudioInput, signal?: AbortSignal): Promise<AudioPlaybackResult>;
 }
 
 export interface ImageCaptureProvider {
