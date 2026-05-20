@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentSessionEvent } from "@exocortex/protocol";
-import { assembleGraphContext } from "./context-assembly.js";
-import { compareFrames, promoteSelfModification, proposeSelfModification, recordEvaluation } from "./evaluation.js";
+import { assembleGraphContext, renderGraphContextForPrompt } from "./context-assembly.js";
+import { compareEvaluationSuiteRuns, compareFrames, promoteSelfModification, proposeSelfModification, recordEvaluation, recordEvaluationSuite, recordEvaluationSuiteRun } from "./evaluation.js";
 import { createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "./event-graph-behaviors.js";
 import { EventSourcedGraph } from "./event-graph.js";
 import { EventGraphKernel } from "./event-graph-kernel.js";
@@ -222,6 +222,74 @@ function runContextEvaluationPromotionContract(): void {
   assert.equal(context.goals[0]?.data.text, "Improve context assembly");
   assert.equal(context.modalities[0]?.data.key, "app_input_text");
   assert.ok(context.openTasks.length);
+
+  for (let i = 0; i < 5; i += 1) {
+    graph.addObject("message", { stableKey: `message:ctx:${i}`, text: `context detail ${i} ${"x".repeat(80)}` }, { actor: "test" });
+  }
+  graph.addObject("task", { stableKey: "task:ctx:followup", taskKind: "review_context_followup", status: "open" }, { actor: "test" });
+  graph.addObject("task", { stableKey: "task:ctx:blocked", taskKind: "review_context_blocked", status: "blocked" }, { actor: "test" });
+  const compactContext = assembleGraphContext(graph, {
+    sessionId: "unscoped",
+    modalityKey: "unscoped",
+    includeObjectTypes: ["message", "task"],
+    runtimePolicy: { provider: "local", model: "tiny-runtime", detail: "compact", targetInputTokens: 512 },
+    retention: { maxOpenTasks: 2, maxRecentObjects: 3, maxRecentEvents: 4, maxObjectDataStringLength: 24, maxEventPayloadStringLength: 24 }
+  });
+  assert.equal(compactContext.openTasks.length, 2);
+  assert.equal(compactContext.recentObjects.length, 3);
+  assert.equal(compactContext.recentEvents.length, 4);
+  assert.ok(compactContext.compaction.compactedStrings > 0);
+  assert.ok(compactContext.compaction.omittedCounts.recentObjects > 0);
+  const promptPayload = JSON.parse(renderGraphContextForPrompt(compactContext)) as { recentEvents: unknown[]; recentObjects: Array<{ data: { text?: string } }> };
+  assert.ok(promptPayload.recentEvents.length <= 4);
+  assert.ok(promptPayload.recentObjects.some((object) => object.data.text?.includes("[truncated")));
+
+  const suite = recordEvaluationSuite(graph, {
+    suiteId: "runtime-intelligence",
+    evaluator: "test",
+    candidates: [
+      { candidateId: "model_fast", kind: "model", provider: "local", model: "fast" },
+      { candidateId: "model_deep", kind: "model", provider: "local", model: "deep" },
+      { candidateId: "tool_search", kind: "tool", toolName: "search" }
+    ],
+    cases: [
+      { caseId: "case_summary", input: { prompt: "summarize" }, expected: { format: "bullets" }, weight: 1 },
+      { caseId: "case_tool", input: { prompt: "find source" }, expected: { tool: "search" }, weight: 3 }
+    ],
+    criteria: { minScore: 0.8 }
+  });
+  const fastRun = recordEvaluationSuiteRun(graph, {
+    suiteObjectId: suite.id,
+    candidateId: "model_fast",
+    evaluator: "test",
+    caseResults: {
+      case_summary: { score: 0.8, passed: true, result: { latencyMs: 20 } },
+      case_tool: { score: 0.6, passed: true, result: { latencyMs: 30 } }
+    }
+  });
+  const deepRun = recordEvaluationSuiteRun(graph, {
+    suiteObjectId: suite.id,
+    candidateId: "model_deep",
+    evaluator: "test",
+    caseResults: {
+      case_summary: { score: 0.8, passed: true, result: { latencyMs: 50 } },
+      case_tool: { score: 1, passed: true, result: { latencyMs: 60 } }
+    }
+  });
+  const toolRun = recordEvaluationSuiteRun(graph, {
+    suiteObjectId: suite.id,
+    candidateId: "tool_search",
+    evaluator: "test",
+    caseResults: {
+      case_summary: { score: 0.5, passed: false, result: { reason: "not a model" } },
+      case_tool: { score: 1, passed: true, result: { calls: 1 } }
+    }
+  });
+  assert.ok(Math.abs(Number(deepRun.data.score) - 0.95) < 0.000_001);
+  assert.equal(toolRun.data.passed, false);
+  const suiteComparison = compareEvaluationSuiteRuns(graph, { runObjectIds: [fastRun.id, deepRun.id, toolRun.id], evaluator: "test" });
+  assert.equal(suiteComparison.data.winnerRunObjectId, deepRun.id);
+  assert.equal(suiteComparison.data.winnerCandidateId, "model_deep");
 
   const frameA = graph.createFrame("Policy A", { id: "frame_a", actor: "test" });
   const frameB = graph.createFrame("Policy B", { id: "frame_b", actor: "test" });

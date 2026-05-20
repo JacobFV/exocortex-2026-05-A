@@ -30,6 +30,57 @@ export interface SelfModificationProposalInput {
   now?: Date;
 }
 
+export interface EvaluationCandidate {
+  candidateId: string;
+  kind: "model" | "tool" | "runtime";
+  label?: string;
+  provider?: string;
+  model?: string;
+  toolName?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface EvaluationCase {
+  caseId: string;
+  input: Record<string, unknown>;
+  expected?: Record<string, unknown>;
+  criteria?: Record<string, unknown>;
+  weight?: number;
+}
+
+export interface EvaluationSuiteInput {
+  suiteId: string;
+  evaluator: string;
+  description?: string;
+  candidates: EvaluationCandidate[];
+  cases: EvaluationCase[];
+  criteria?: Record<string, unknown>;
+  now?: Date;
+}
+
+export interface EvaluationCaseResult {
+  score: number;
+  passed: boolean;
+  result: Record<string, unknown>;
+  metrics?: Record<string, number>;
+}
+
+export interface EvaluationSuiteRunInput {
+  suiteObjectId: string;
+  candidateId: string;
+  evaluator: string;
+  caseResults: Record<string, EvaluationCaseResult>;
+  metadata?: Record<string, unknown>;
+  now?: Date;
+}
+
+export interface EvaluationSuiteComparisonInput {
+  runObjectIds: string[];
+  evaluator: string;
+  winnerRunObjectId?: string;
+  now?: Date;
+}
+
 export function recordEvaluation(graph: EventSourcedGraph, input: EvaluationInput): GraphObject {
   const stableKey = `evaluation:${input.evaluator}:${input.frameId ?? "no_frame"}:${input.subjectObjectId ?? "no_subject"}:${stableHash(input.criteria)}:${stableHash(input.result)}`;
   return graph.addObject(
@@ -104,6 +155,86 @@ export function promoteSelfModification(graph: EventSourcedGraph, selfModificati
   return graph.getObject(proposal.id)!;
 }
 
+export function recordEvaluationSuite(graph: EventSourcedGraph, input: EvaluationSuiteInput): GraphObject {
+  requireUniqueIds(input.candidates.map((candidate) => candidate.candidateId), "candidateId");
+  requireUniqueIds(input.cases.map((testCase) => testCase.caseId), "caseId");
+  const stableKey = `evaluation_suite:${input.suiteId}:${stableHash({ cases: input.cases, criteria: input.criteria })}`;
+  return graph.addObject(
+    "evaluation_suite",
+    {
+      stableKey,
+      suiteId: input.suiteId,
+      description: input.description,
+      evaluator: input.evaluator,
+      candidates: input.candidates,
+      cases: input.cases,
+      criteria: input.criteria ?? {}
+    },
+    { actor: input.evaluator, createdAt: input.now }
+  );
+}
+
+export function recordEvaluationSuiteRun(graph: EventSourcedGraph, input: EvaluationSuiteRunInput): GraphObject {
+  const suite = requireEvaluationSuite(graph, input.suiteObjectId);
+  const suiteId = requireStringData(suite, "suiteId");
+  const candidates = requireArrayData<EvaluationCandidate>(suite, "candidates");
+  const cases = requireArrayData<EvaluationCase>(suite, "cases");
+  const candidate = candidates.find((item) => item.candidateId === input.candidateId);
+  if (!candidate) throw new Error(`Unknown evaluation candidate for suite ${suite.id}: ${input.candidateId}`);
+  const caseIds = new Set(cases.map((testCase) => testCase.caseId));
+  for (const caseId of Object.keys(input.caseResults)) {
+    if (!caseIds.has(caseId)) throw new Error(`Unknown evaluation case for suite ${suite.id}: ${caseId}`);
+  }
+  const aggregate = aggregateCaseResults(cases, input.caseResults);
+  const run = graph.addObject(
+    "evaluation_suite_run",
+    {
+      stableKey: `evaluation_suite_run:${suiteId}:${input.candidateId}:${input.evaluator}:${stableHash(input.caseResults)}`,
+      suiteObjectId: suite.id,
+      suiteId,
+      candidateId: input.candidateId,
+      candidate,
+      evaluator: input.evaluator,
+      caseResults: input.caseResults,
+      score: aggregate.score,
+      passed: aggregate.passed,
+      completedCaseCount: aggregate.completedCaseCount,
+      totalCaseCount: cases.length,
+      metadata: input.metadata ?? {}
+    },
+    { actor: input.evaluator, createdAt: input.now }
+  );
+  graph.addRelation(run.id, suite.id, "evaluates", { candidateId: input.candidateId }, { actor: input.evaluator, createdAt: input.now });
+  return run;
+}
+
+export function compareEvaluationSuiteRuns(graph: EventSourcedGraph, input: EvaluationSuiteComparisonInput): GraphObject {
+  const runs = input.runObjectIds.map((runObjectId) => requireEvaluationSuiteRun(graph, runObjectId));
+  if (!runs.length) throw new Error("Evaluation suite comparison requires at least one run");
+  const suiteObjectIds = new Set(runs.map((run) => requireStringData(run, "suiteObjectId")));
+  if (suiteObjectIds.size !== 1) throw new Error("Evaluation suite comparison runs must belong to the same suite");
+  const winnerRunObjectId = input.winnerRunObjectId ?? chooseSuiteRunWinner(runs);
+  if (!input.runObjectIds.includes(winnerRunObjectId)) throw new Error(`winnerRunObjectId is not in runObjectIds: ${winnerRunObjectId}`);
+  const comparison = graph.addObject(
+    "evaluation_suite_comparison",
+    {
+      stableKey: `evaluation_suite_comparison:${stableHash({ runObjectIds: input.runObjectIds, winnerRunObjectId })}`,
+      suiteObjectId: [...suiteObjectIds][0],
+      runObjectIds: input.runObjectIds,
+      evaluator: input.evaluator,
+      candidates: Object.fromEntries(runs.map((run) => [run.id, run.data.candidateId])),
+      scores: Object.fromEntries(runs.map((run) => [run.id, run.data.score])),
+      winnerRunObjectId,
+      winnerCandidateId: graph.getObject(winnerRunObjectId)?.data.candidateId
+    },
+    { actor: input.evaluator, createdAt: input.now }
+  );
+  for (const run of runs) {
+    graph.addRelation(comparison.id, run.id, "compares", {}, { actor: input.evaluator, createdAt: input.now });
+  }
+  return comparison;
+}
+
 function requireFrame(graph: EventSourcedGraph, frameId: string): GraphFrame {
   const frame = graph.snapshot().frames.find((candidate) => candidate.id === frameId);
   if (!frame) throw new Error(`Unknown frame: ${frameId}`);
@@ -117,4 +248,67 @@ function chooseWinner(metrics: Record<string, Record<string, number>>): string |
     if (!winner || score > winner.score) winner = { frameId, score };
   }
   return winner?.frameId;
+}
+
+function requireEvaluationSuite(graph: EventSourcedGraph, objectId: string): GraphObject {
+  const suite = graph.getObject(objectId);
+  if (!suite || suite.type !== "evaluation_suite") throw new Error(`Unknown evaluation suite: ${objectId}`);
+  return suite;
+}
+
+function requireEvaluationSuiteRun(graph: EventSourcedGraph, objectId: string): GraphObject {
+  const run = graph.getObject(objectId);
+  if (!run || run.type !== "evaluation_suite_run") throw new Error(`Unknown evaluation suite run: ${objectId}`);
+  return run;
+}
+
+function requireArrayData<T>(object: GraphObject, key: string): T[] {
+  const value = object.data[key];
+  if (!Array.isArray(value)) throw new Error(`Graph object ${object.id} requires array data ${key}`);
+  return value as T[];
+}
+
+function requireStringData(object: GraphObject, key: string): string {
+  const value = object.data[key];
+  if (typeof value !== "string") throw new Error(`Graph object ${object.id} requires string data ${key}`);
+  return value;
+}
+
+function requireUniqueIds(ids: string[], label: string): void {
+  const seen = new Set<string>();
+  for (const id of ids) {
+    if (!id) throw new Error(`${label} is required`);
+    if (seen.has(id)) throw new Error(`Duplicate ${label}: ${id}`);
+    seen.add(id);
+  }
+}
+
+function aggregateCaseResults(cases: EvaluationCase[], caseResults: Record<string, EvaluationCaseResult>): { score: number; passed: boolean; completedCaseCount: number } {
+  let weightedScore = 0;
+  let weightTotal = 0;
+  let completedCaseCount = 0;
+  let passed = true;
+  for (const testCase of cases) {
+    const result = caseResults[testCase.caseId];
+    const weight = testCase.weight ?? 1;
+    weightTotal += weight;
+    if (!result) {
+      passed = false;
+      continue;
+    }
+    completedCaseCount += 1;
+    weightedScore += result.score * weight;
+    if (!result.passed) passed = false;
+  }
+  return { score: weightTotal > 0 ? weightedScore / weightTotal : 0, passed, completedCaseCount };
+}
+
+function chooseSuiteRunWinner(runs: GraphObject[]): string {
+  let winner: { runObjectId: string; score: number; passed: boolean } | undefined;
+  for (const run of runs) {
+    const score = typeof run.data.score === "number" ? run.data.score : 0;
+    const passed = run.data.passed === true;
+    if (!winner || (passed && !winner.passed) || (passed === winner.passed && score > winner.score)) winner = { runObjectId: run.id, score, passed };
+  }
+  return winner?.runObjectId ?? runs[0]!.id;
 }
