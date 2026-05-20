@@ -12,6 +12,7 @@
     { "path": "../../packages/peripherals" },
     { "path": "../../packages/transports" },
     { "path": "../../packages/browser-session" },
+    { "path": "../../packages/continuity" },
     { "path": "../../packages/session" }
   ],
   "include": ["src/**/*.ts"]

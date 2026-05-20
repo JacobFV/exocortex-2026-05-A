@@ -28,7 +28,7 @@ The continuity kernel owns the event append path, patch proposal and acceptance,
 
 The detailed schema, rejected designs, package refactors, projection rules, behavior rules, branching model, and implementation plan are specified in [continuity-kernel.md](./continuity-kernel.md).
 
-Current session integration is opt-in: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`.
+Current session integration is enabled in Electron and opt-in for other hosts: `AgentSessionManager` can be constructed with a `ContinuityKernel`, and emitted session events project into the session's `branchId`. Electron creates a SQLite-backed continuity store at startup, passes its kernel into the session manager, exposes graph node/edge/patch reads over IPC, and records actuator arming as safety-grant graph state.
 
 ### `agent_sessions`
 
