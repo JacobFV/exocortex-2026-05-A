@@ -7,13 +7,41 @@ import { parseOperatorCliArgs, runOperatorCli } from "./index.js";
 
 assert.deepEqual(parseOperatorCliArgs(["continuity-runs", "--db", "graph.db"]), { name: "continuity-runs", db: "graph.db" });
 assert.deepEqual(parseOperatorCliArgs(["continuity-summary", "--db", "graph.db", "--run", "main"]), { name: "continuity-summary", db: "graph.db", run: "main" });
-assert.deepEqual(parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main", "--output", "main.json"]), { name: "continuity-export", db: "graph.db", run: "main", output: "main.json", filter: { objectTypes: undefined, eventTypes: undefined, recentEvents: undefined } });
-assert.deepEqual(parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main", "--output", "main.json", "--object-type", "task,evidence", "--event-type", "object.created", "--recent-events", "5"]), {
+assert.deepEqual(parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main", "--output", "main.json"]), {
   name: "continuity-export",
   db: "graph.db",
   run: "main",
   output: "main.json",
-  filter: { objectTypes: ["task", "evidence"], eventTypes: ["object.created"], recentEvents: 5 }
+  filter: {
+    objectTypes: undefined,
+    eventTypes: undefined,
+    recentEvents: undefined,
+    relationTypes: undefined,
+    sessionIds: undefined,
+    modalityKeys: undefined,
+    frameIds: undefined,
+    createdAfter: undefined,
+    createdBefore: undefined,
+    objectData: undefined
+  }
+});
+assert.deepEqual(parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main", "--output", "main.json", "--object-type", "task,evidence", "--event-type", "object.created", "--relation-type", "supports", "--session-id", "sess_1", "--modality-key", "app_input_text", "--frame-id", "frame_1", "--object-data", "status=open,attempt=2", "--recent-events", "5"]), {
+  name: "continuity-export",
+  db: "graph.db",
+  run: "main",
+  output: "main.json",
+  filter: {
+    objectTypes: ["task", "evidence"],
+    eventTypes: ["object.created"],
+    recentEvents: 5,
+    relationTypes: ["supports"],
+    sessionIds: ["sess_1"],
+    modalityKeys: ["app_input_text"],
+    frameIds: ["frame_1"],
+    createdAfter: undefined,
+    createdBefore: undefined,
+    objectData: { status: "open", attempt: 2 }
+  }
 });
 assert.throws(() => parseOperatorCliArgs(["continuity-export", "--db", "graph.db", "--run", "main"]), /Missing --output/);
 
@@ -23,7 +51,7 @@ try {
   const exportPath = join(tempRoot, "main.json");
   const store = new SQLiteEventSourcedGraphStore(dbPath);
   const graph = new EventSourcedGraph({ runId: "main", store, clock: () => new Date("2026-05-20T00:00:00.000Z") });
-  graph.addObject("task", { stableKey: "task:operator_cli", status: "open" }, { actor: "test" });
+  graph.addObject("task", { stableKey: "task:operator_cli", status: "open", sessionId: "sess_operator", modalityKey: "app_input_text" }, { actor: "test" });
   store.close();
 
   const runsLines: string[] = [];
@@ -35,7 +63,7 @@ try {
   assert.equal(JSON.parse(summaryLines[0] ?? "{}").objectCount, 1);
 
   const exportLines: string[] = [];
-  await runOperatorCli({ name: "continuity-export", db: dbPath, run: "main", output: exportPath, filter: { objectTypes: ["task"], recentEvents: 1 } }, (line) => exportLines.push(line));
+  await runOperatorCli({ name: "continuity-export", db: dbPath, run: "main", output: exportPath, filter: { objectTypes: ["task"], sessionIds: ["sess_operator"], modalityKeys: ["app_input_text"], objectData: { status: "open" }, recentEvents: 1 } }, (line) => exportLines.push(line));
   assert.equal(JSON.parse(exportLines[0] ?? "{}").status, "ok");
   assert.match(readFileSync(exportPath, "utf8"), /exocortex\.continuity\.run_export\.v1/);
   assert.equal(readContinuityRunExport(exportPath).summary.objectCount, 1);

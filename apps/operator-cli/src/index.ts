@@ -55,12 +55,37 @@ function exportFilterFromOptions(options: Record<string, string | undefined>): C
   return {
     objectTypes: commaList(options["object-type"]),
     eventTypes: commaList(options["event-type"]),
-    recentEvents: options["recent-events"] ? Number(options["recent-events"]) : undefined
+    recentEvents: options["recent-events"] ? Number(options["recent-events"]) : undefined,
+    relationTypes: commaList(options["relation-type"]),
+    sessionIds: commaList(options["session-id"]),
+    modalityKeys: commaList(options["modality-key"]),
+    frameIds: commaList(options["frame-id"]),
+    createdAfter: options["created-after"],
+    createdBefore: options["created-before"],
+    objectData: keyValueFilter(options["object-data"])
   };
 }
 
 function commaList(value: string | undefined): string[] | undefined {
   return value ? value.split(",").map((item) => item.trim()).filter(Boolean) : undefined;
+}
+
+function keyValueFilter(value: string | undefined): Record<string, string | number | boolean> | undefined {
+  if (!value) return undefined;
+  return Object.fromEntries(
+    value.split(",").map((pair) => {
+      const [key, rawValue] = pair.split("=");
+      if (!key || rawValue === undefined) throw new Error("--object-data must use key=value pairs separated by commas");
+      return [key.trim(), parseScalar(rawValue.trim())];
+    })
+  );
+}
+
+function parseScalar(value: string): string | number | boolean {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  const number = Number(value);
+  return value !== "" && Number.isFinite(number) ? number : value;
 }
 
 function parseOptions(argv: string[]): Record<string, string | undefined> {
@@ -90,7 +115,7 @@ function usage(command?: string): string {
   return `${prefix}Usage:
   exocortex-operator continuity-runs --db continuity-events.db
   exocortex-operator continuity-summary --db continuity-events.db --run main
-  exocortex-operator continuity-export --db continuity-events.db --run main --output continuity-run-main.json [--object-type task,evidence] [--event-type object.created] [--recent-events 100]`;
+  exocortex-operator continuity-export --db continuity-events.db --run main --output continuity-run-main.json [--object-type task,evidence] [--event-type object.created] [--relation-type supports] [--session-id sess_...] [--modality-key app_input_text] [--frame-id frame_...] [--created-after 2026-05-20T00:00:00.000Z] [--created-before 2026-05-21T00:00:00.000Z] [--object-data status=open] [--recent-events 100]`;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

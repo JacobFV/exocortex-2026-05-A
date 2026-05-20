@@ -53,6 +53,11 @@ export interface ArtifactBlobGarbageCollectResult {
   }>;
 }
 
+export interface ArtifactBlobRepairOptions {
+  replacementData?: Uint8Array | string;
+  trustExistingBlob?: boolean;
+}
+
 type SessionRetentionMetadata = Pick<AgentSession, "id" | "state" | "createdAt" | "updatedAt" | "finishedAt">;
 
 interface ClassifiedArtifactBlob {
@@ -127,6 +132,29 @@ export class FileArtifactBlobStore {
       bytes: bytes.byteLength,
       expectedBytes: artifact.bytes
     };
+  }
+
+  repair(artifact: AgentSessionArtifact, options: ArtifactBlobRepairOptions): StoredArtifactBlob {
+    const data = options.replacementData !== undefined
+      ? options.replacementData
+      : options.trustExistingBlob
+        ? readFileSync(this.pathForArtifact(artifact))
+        : undefined;
+    if (data === undefined) throw new Error(`Artifact blob repair for ${artifact.id} requires replacementData or trustExistingBlob`);
+    return this.put({
+      artifactId: artifact.id,
+      sessionId: artifact.sessionId,
+      kind: artifact.kind,
+      title: artifact.title,
+      data,
+      mimeType: artifact.mimeType,
+      createdAt: artifact.createdAt,
+      metadata: {
+        ...(artifact.metadata ?? {}),
+        repairedAt: new Date().toISOString(),
+        repairSource: options.replacementData !== undefined ? "replacement_data" : "trusted_existing_blob"
+      }
+    });
   }
 
   garbageCollect(options: ArtifactBlobGarbageCollectOptions): ArtifactBlobGarbageCollectResult {

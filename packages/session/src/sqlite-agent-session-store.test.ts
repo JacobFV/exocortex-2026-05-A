@@ -101,6 +101,10 @@ try {
   writeFileSync(stored.path, new Uint8Array([1, 2, 3, 5]));
   assert.equal(blobStore.verify(stored.artifact).ok, false);
   assert.throws(() => blobStore.read(stored.artifact), /Artifact blob integrity check failed/);
+  const repaired = blobStore.repair(stored.artifact, { replacementData: new Uint8Array([1, 2, 3, 4]) });
+  assert.equal(repaired.artifact.id, stored.artifact.id);
+  assert.equal(blobStore.verify(repaired.artifact).ok, true);
+  assert.deepEqual([...blobStore.read(repaired.artifact)], [1, 2, 3, 4]);
 
   const dayMs = 24 * 60 * 60 * 1000;
   const expiredSessionId = "ses_expired_blob_gc" as AgentSessionId;

@@ -98,6 +98,15 @@ async function runStoreContract(store: InMemoryEventSourcedGraphStore | SQLiteEv
   const exported = exportContinuityRun(graph, new Date("2026-05-20T00:00:01.000Z"));
   validateContinuityRunExport(exported);
   assert.equal(exported.summary.objectCount, graph.snapshot().objects.length);
+  const filteredExport = exportContinuityRun(graph, new Date("2026-05-20T00:00:01.000Z"), {
+    objectTypes: ["task"],
+    relationTypes: ["depends_on"],
+    objectData: { status: "open" },
+    createdAfter: "2026-05-19T00:00:00.000Z",
+    createdBefore: "2026-05-21T00:00:00.000Z"
+  });
+  assert.ok(filteredExport.snapshot.objects.every((object) => object.type === "task" && object.data.status === "open"));
+  assert.ok(filteredExport.snapshot.relations.every((relation) => relation.type === "depends_on"));
   const exportedFromStore = exportContinuityRunFromStore(store, graph.runId, new Date("2026-05-20T00:00:01.000Z"));
   assert.deepEqual(jsonSnapshot(exportedFromStore.snapshot), jsonSnapshot(graph.snapshot()));
   runtime.close();
