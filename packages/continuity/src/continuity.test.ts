@@ -8,6 +8,7 @@ import { acceptPatch, ensureMainBranch, proposePatch, rejectPatch } from "./patc
 import { InMemoryContinuityStore } from "./in-memory-store.js";
 import { SQLiteContinuityStore } from "./sqlite-store.js";
 import { createFailureReviewBehavior, createUnsupportedClaimBehavior } from "./behaviors.js";
+import { diffBranch, proposeBranchMerge } from "./branching.js";
 import type { ContinuityPatch, ContinuityPatchOp, ContinuityStore } from "./types.js";
 
 const sessionId = createId<"AgentSessionId">("sess");
@@ -75,6 +76,11 @@ async function runStoreContract(store: ContinuityStore): Promise<void> {
   acceptPatch(store, patch2.id, "test", new Date("2026-05-19T00:00:07.000Z"));
   assert.equal(store.getNode("node_branch_manual")?.kind, "task");
   assert.equal(store.findNodeByStableKey("main", "task:manual"), undefined);
+  const diff = diffBranch(store, "branch_retry", "main");
+  assert.deepEqual(diff.addedNodes.map((node) => node.stableKey), ["task:manual"]);
+  const merge = proposeBranchMerge(store, { branchId: "branch_retry", baseBranchId: "main", now: new Date("2026-05-19T00:00:07.500Z") });
+  assert.equal(merge.diff.conflicts.length, 0);
+  assert.equal(merge.ops.filter((op) => op.op === "create_node").length, 1);
 
   const failureChange = {
     branchId: "main",

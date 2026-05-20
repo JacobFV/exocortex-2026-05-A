@@ -1100,6 +1100,8 @@ Acceptance:
 - branch diff reports node and edge changes
 - conflicting patches are reported before merge
 
+Status: partially implemented. `@exocortex/continuity` includes branch creation through `ContinuityKernel`, `diffBranch`, and `proposeBranchMerge`. Tests cover branch isolation, added-node diffing, and merge patch proposal. Full conflict resolution, accepted merge application workflow, branch archive/abandon helpers, and evaluation-aware branch comparison remain to be implemented.
+
 ### Stage 7: Capability Registry
 
 Deliverables:
