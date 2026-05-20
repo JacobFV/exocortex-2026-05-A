@@ -46,8 +46,8 @@ const smokeRouter = new ModelRouter([{ id: "local", provider: "local_rules" }]);
 const smokeResult = await runLiveModelSmoke(smokeRouter, { modelId: "local", requireOptIn: false, prompt: "hello" });
 assert.equal(smokeResult.ok, true);
 assert.equal(smokeResult.modelId, "local");
-assert.match(redactLiveSmokeError("Authorization: Bearer sk-secret and api_key=sk-another"), /REDACTED/);
-assert.doesNotMatch(redactLiveSmokeError("Authorization: Bearer sk-secret and api_key=sk-another"), /sk-secret|sk-another/);
+assert.match(redactLiveSmokeError("Authorization: Bearer sk-demo and api_key=sk-other"), /REDACTED/);
+assert.doesNotMatch(redactLiveSmokeError("Authorization: Bearer sk-demo and api_key=sk-other"), /sk-demo|sk-other/);
 
 {
   const originalFetch = globalThis.fetch;

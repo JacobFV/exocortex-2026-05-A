@@ -59,6 +59,6 @@ The session package includes in-memory, JSONL file-backed, and SQLite-backed sto
 
 ## Current Status
 
-The implemented foundation includes EventGraph-backed continuity, graph context assembly for model turns, evaluation/self-modification objects, Electron and Expo host shells, persisted Electron sessions/artifact blobs, serial transport health, model health checks, media provider wiring, calibration acceptance, safety denial audit state, and filtered continuity exports.
+The implemented foundation includes EventGraph-backed continuity, configurable graph context assembly for model turns, evaluation/self-modification objects and evaluation suites, Electron and Expo host shells, persisted Electron sessions/artifact blobs, artifact integrity/retention, serial transport health, opt-in live model checks, Electron continuous STT bridging, browser frame artifacts, media provider wiring, calibration acceptance, safety denial audit state, pre-execution actuator approvals, hardware bench smoke tooling, SQLite migrations, and filtered continuity exports.
 
-Remaining work is tracked in `docs/remaining-work.md`. The most important next steps are rotating the local OpenAI key, adding a real Electron renderer bundle with browser-level tests, building continuous STT/TTS modality bridges, validating one physical ESP bridge end to end, and adding pre-execution approval for hazardous actuator commands.
+Remaining work is tracked in `docs/remaining-work.md`. The most important next steps are rotating the local OpenAI key, adding a real Electron renderer bundle with browser-level tests, building TTS/speaker and camera/video modality bridges, and validating one physical ESP bridge end to end.

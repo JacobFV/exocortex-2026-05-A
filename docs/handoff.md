@@ -112,12 +112,25 @@ The durable backlog is `docs/remaining-work.md`. The highest-leverage next work 
 
 1. Rotate and replace the exposed OpenAI key in `config/local/.env`; current live check returns `401 invalid_api_key`.
 2. Replace inline Electron HTML with a real renderer bundle and browser-level smoke tests.
-3. Build continuous STT/TTS/camera modality bridges, not only provider/artifact workflows.
-4. Bring up one physical ESP head bridge and validate calibrated samples plus gated actuator output end to end.
-5. Add pre-execution graph-backed approval workflow for hazardous actuator commands.
-6. Add migration steps beyond current schema version markers.
-7. Add artifact retention/integrity/encryption operations.
-8. Add richer graph export/UI filters by session, modality, frame, time, relation, and object data fields.
+3. Build TTS/speaker action sinks plus camera/video modality observation bridges for Electron and Expo.
+4. Bring up one physical ESP head bridge with `exocortex-hardware bench-smoke`, then validate calibrated samples plus gated actuator output end to end.
+5. Wire evaluation suites into automated retry/simulation frames for provider/tool/policy experiments.
+6. Add blob repair and encrypted-at-rest options.
+7. Add richer graph export/UI filters by session, modality, frame, time, relation, and object data fields.
+
+Recent local commits after the configuration cleanup:
+
+```txt
+6b2e342 Require Electron actuator approvals
+302186f Add hardware bench smoke command
+b0a4b46 Add SQLite forward migrations
+53b7e71 Wire browser artifacts and STT bridge
+86786b5 Add artifact integrity and retention
+dd47292 Add runtime context policies and eval suites
+57af0ce Add actuator approval lifecycle
+fb795ae Add opt-in live model smoke check
+b6ca07c Add live modality route controls
+```
 
 ## Local Configuration
 

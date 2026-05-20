@@ -17,37 +17,42 @@ These are implemented and covered by repository validation, but still need produ
 - Serial transport health counters, framing error recovery, bounded write queue, optional reconnect, and device identity capture.
 - Expo live views for sessions, events, modalities, artifacts, and EventGraph state.
 - Local env layout: real secrets live in ignored `config/local/.env`; tracked examples live in `config/examples/env.example`.
+- Runtime/model-specific graph context policies, retention limits, compaction reports, and prompt budget pruning.
+- Evaluation suites and suite-run comparisons for repeatable model/tool/runtime scoring fixtures.
+- Live modality route controls in Electron; policies can switch between observe, control, duplex, and disabled.
+- Opt-in live model smoke command via `npm run smoke:live -w @exocortex/models`.
+- Opt-in continuous Electron STT bridge from configured audio capture and STT providers into microphone transcript modalities.
+- Browser projection captures are persisted as image artifacts.
+- Artifact blob integrity verification and age/session-aware garbage collection.
+- SQLite forward migrations with versioned migration records and query-index migration steps.
+- Opt-in actuator approval lifecycle in `@exocortex/safety`, plus Electron pre-execution approval UI/API required by default for actuator commands.
+- Hardware CLI `bench-smoke` command for attached ESP/head-bridge validation runs.
 
 ## Remaining Work
 
 ### Runtime Intelligence
 
-- Make graph context assembly configurable per model/runtime policy instead of the current fixed Electron context provider.
-- Add scored evaluation suites for model/tool selection that run repeatable fixtures across local-rules, Ollama, llama.cpp, and OpenAI-compatible providers.
 - Add automated retry/simulation frames that can re-run a task under alternate capabilities or policies and record evaluations without manual orchestration.
 - Add a guarded operator approval step before promotion applies self-modification patches in production, even when an evaluation passes.
-- Add retention/compaction policies for graph context so long-running sessions do not overfill prompts.
+- Wire evaluation suites to real provider execution harnesses for Ollama, llama.cpp, and OpenAI-compatible models after valid local/provider configuration is present.
 
 ### Host Experience
 
 - Replace the inline string-rendered Electron dashboard with a real renderer bundle, component tests, and browser-level smoke tests.
-- Add modality routing controls that can enable/disable bindings, change observe/control policy, and show route health per session.
-- Add graph-backed approval UI for hazardous actions before execution, not just grant/denial audit views after arming or rejection.
 - Add richer graph inspection: saved filters, object detail drill-down, relation traversal, frame/evaluation comparison views, and export from UI.
 - Expand Expo parity beyond JSON views: wearable-usable navigation, live event subscriptions that do not require manual refresh, graph/safety/artifact detail screens, and media controls.
 
 ### Models And Media
 
 - Replace the invalid local `OPENAI_API_KEY` in `config/local/.env`; live OpenAI-compatible model test currently fails with `401 invalid_api_key`.
-- Add live-model smoke commands that can be run intentionally against configured providers without leaking secrets.
-- Add real microphone STT bridges for `device_mic_stt_input_text`, `ext_mic_1_stt_input_text`, and `ext_mic_2_stt_input_text`; current STT is provider-level and artifact transcription, not continuous bridge ingestion.
-- Add real TTS/speaker output modality sinks for Electron and Expo.
+- Run the opt-in live-model smoke command against a valid provider key and local providers.
+- Add real TTS/speaker output modality sinks for Electron and Expo session actions.
 - Add Electron and Expo camera/video/image capture bridges that emit modality observations and persisted artifacts automatically.
-- Add browser screenshot/recording artifacts from projected browser sessions, not only manual capture artifacts.
+- Add browser recording artifacts from projected browser sessions.
 
 ### Physical Device Bring-Up
 
-- Bench validate against actual ESP-class boards, ADCs, analog multiplexers, microphones, speakers, cameras, EEG front ends, ultrasound triggers, headlamps, lasers, and haptics.
+- Run `exocortex-hardware bench-smoke` against actual ESP-class boards, ADCs, analog multiplexers, microphones, speakers, cameras, EEG front ends, ultrasound triggers, headlamps, lasers, and haptics.
 - Validate calibrated samples flowing from firmware to serial frames to modality observations to EventGraph evidence.
 - Validate gated actuator actions flowing from session events through safety grants and firmware commands.
 - Add hardware-in-the-loop tests for firmware protocol compatibility, framing error recovery, reconnects, and actuator safety limits.
@@ -55,27 +60,24 @@ These are implemented and covered by repository validation, but still need produ
 
 ### Storage And Operations
 
-- Add real schema migration steps beyond version markers, including forward migrations for existing development databases.
-- Add artifact garbage collection and retention policies tied to event/graph provenance.
-- Add blob integrity verification and repair tooling using stored SHA-256 hashes.
+- Add blob repair tooling using stored SHA-256 hashes.
 - Add encrypted-at-rest option for local blobs and SQLite databases where platform support exists.
 - Add richer continuity export filters by object data fields, relation type, frame id, session id, modality key, and time window.
-- Add CI/live-check separation: normal CI remains deterministic; opt-in live checks cover model providers, media commands, and attached hardware.
+- Add opt-in live checks for media commands and attached hardware; model live checks and hardware bench smoke commands now exist.
 
 ### Safety And Calibration
 
-- Add a pre-execution approval workflow for hazardous actuator commands, including explicit operator confirmation, expiry, and revocation.
 - Add calibration acceptance UX that previews profile diffs, supersession lineage, and affected channels before accepting.
 - Add runtime enforcement of actuator safety calibration overlays, not just analog sample calibration and safety gate defaults.
 - Add audit views for command limits, pulse limits, cooldown decisions, grant use, grant expiry, revocation, and denied commands.
 
 ## Recommended Next Steps
 
-1. Rotate and replace the exposed OpenAI key in `config/local/.env`, then run an opt-in live model smoke check.
+1. Rotate and replace the exposed OpenAI key in `config/local/.env`, then run `EXOCORTEX_LIVE_MODEL_CHECK=1 npm run smoke:live -w @exocortex/models`.
 2. Add a real Electron renderer bundle and Playwright smoke tests for session creation, model health, browser projection, media capture, calibration acceptance, and safety audit views.
-3. Build continuous STT/TTS modality bridges and route them through session observations/actions with persisted media artifacts.
-4. Bring up one physical ESP head bridge on the bench and validate calibrated input plus one safe actuator output end to end.
-5. Implement graph-backed hazardous-action approval before execution, using safety grants as one input rather than the whole workflow.
+3. Build TTS/speaker action sinks and camera/video modality observation bridges for Electron and Expo.
+4. Bring up one physical ESP head bridge with `exocortex-hardware bench-smoke`, then validate calibrated input plus one safe actuator output end to end.
+5. Wire evaluation suites into automated retry/simulation frames for provider/tool/policy experiments.
 
 ## Acceptance Bar
 
@@ -84,5 +86,5 @@ These are implemented and covered by repository validation, but still need produ
 - No secrets are committed; local secrets remain under ignored `config/local/`.
 - No legacy shim packages or old continuity store APIs.
 - All host-observed values preserve modality provenance.
-- Hazardous actuator output cannot bypass validation, graph-backed grants, and the approval workflow once implemented.
+- Hazardous actuator output cannot bypass validation, graph-backed grants, and the approval workflow.
 - EventGraph state is replayable from append-only events.
