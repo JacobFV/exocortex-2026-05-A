@@ -20,6 +20,8 @@ declare global {
       listBrowserSessions(): Promise<unknown[]>;
       browserDispatch(browserSessionId: string, action: unknown): Promise<unknown>;
       browserCapture(browserSessionId: string): Promise<unknown>;
+      onSessionEvent(listener: (event: unknown) => void): () => void;
+      onContinuityEvent(listener: (event: unknown) => void): () => void;
     };
   }
 }

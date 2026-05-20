@@ -32,6 +32,13 @@ const sessionManager = new AgentSessionManager({ runtime: new ModelDrivenAgentRu
 const observationRouter = new ModalityObservationRouter(sessionManager);
 const actionRouter = new ModalityActionRouter(sessionManager);
 
+sessionManager.subscribe("*", (event) => {
+  for (const window of BrowserWindow.getAllWindows()) window.webContents.send("exocortex:session-event", event);
+});
+eventGraph.subscribe((event) => {
+  for (const window of BrowserWindow.getAllWindows()) window.webContents.send("exocortex:continuity-event", event);
+});
+
 const appTextModality = modalityRegistry.getModalityByKey("app_input_text") ?? hostModalities[0];
 const appTextBridge = new ManualInputBridge(appTextModality);
 observationRouter.attachBridge(appTextBridge);
@@ -316,7 +323,8 @@ function renderHtml(): string {
         await window.exocortex.injectAppText(document.querySelector("#text").value);
         await refresh();
       });
-      setInterval(refresh, 1000);
+      window.exocortex.onSessionEvent(() => refresh());
+      window.exocortex.onContinuityEvent(() => refresh());
       refresh();
     </script>
   </body>

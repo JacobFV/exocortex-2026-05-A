@@ -13,7 +13,7 @@ This file is the durable backlog for Exocortex. Keep it concrete and git-referen
 
 - Production Electron UI for live sessions, streaming events, graph inspection, modality routing, browser projection, safety grants, calibration state, and artifacts.
 - Expo UI parity for wearable/mobile operation.
-- Push/event subscription path in the UI so host screens are not polling-only.
+- Electron push subscriptions for session and continuity events are implemented; add equivalent Expo event push wiring.
 
 ## Physical Device Bring-Up
 

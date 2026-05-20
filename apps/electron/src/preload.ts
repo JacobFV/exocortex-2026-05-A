@@ -18,5 +18,15 @@ contextBridge.exposeInMainWorld("exocortex", {
   createBrowserSession: () => ipcRenderer.invoke("exocortex:create-browser-session"),
   listBrowserSessions: () => ipcRenderer.invoke("exocortex:list-browser-sessions"),
   browserDispatch: (browserSessionId: string, action: unknown) => ipcRenderer.invoke("exocortex:browser-dispatch", browserSessionId, action),
-  browserCapture: (browserSessionId: string) => ipcRenderer.invoke("exocortex:browser-capture", browserSessionId)
+  browserCapture: (browserSessionId: string) => ipcRenderer.invoke("exocortex:browser-capture", browserSessionId),
+  onSessionEvent: (listener: (event: unknown) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload);
+    ipcRenderer.on("exocortex:session-event", wrapped);
+    return () => ipcRenderer.off("exocortex:session-event", wrapped);
+  },
+  onContinuityEvent: (listener: (event: unknown) => void) => {
+    const wrapped = (_event: Electron.IpcRendererEvent, payload: unknown) => listener(payload);
+    ipcRenderer.on("exocortex:continuity-event", wrapped);
+    return () => ipcRenderer.off("exocortex:continuity-event", wrapped);
+  }
 });
