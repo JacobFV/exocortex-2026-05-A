@@ -20,6 +20,14 @@ Exocortex keeps that shape, but generalizes "environment" into many typed modali
 
 ## Core Data Model
 
+## Continuity Kernel Direction
+
+The current runtime is session-centered. The target architecture is continuity-centered. `AgentSessionManager` remains important, but it becomes one actor inside a `ContinuityKernel`.
+
+The continuity kernel owns the event append path, patch proposal and acceptance, branch-scoped graph state, behavior dispatch, capability registry hooks, and policy/approval gates. Events record what happened. Accepted patches record what changed. The graph represents what is true for a branch. Behaviors react to accepted graph changes.
+
+The detailed schema, rejected designs, package refactors, projection rules, behavior rules, branching model, and implementation plan are specified in [continuity-kernel.md](./continuity-kernel.md).
+
 ### `agent_sessions`
 
 An agent session is the unit of agent execution. It has a goal, lifecycle state, timestamps, model/runtime metadata, and a set of bound modalities.

@@ -19,6 +19,10 @@ The application is an agent runtime first. The frontend is another agent-managed
 
 ## Agent Core
 
+- The long-term center of the architecture is a `ContinuityKernel`, not a chat loop or session manager.
+- Events record immutable history; accepted patches record state changes; the continuity graph represents branch-scoped operational reality.
+- Behaviors react to accepted graph changes and propose patches or commands.
+- Branches represent alternate graph realities for retries, simulations, policy comparisons, and self-improvement experiments.
 - `agent_sessions` as the unit of execution.
 - `agent_session_events` as append-only event logs.
 - `agent_session_artifacts` as durable outputs.
@@ -192,3 +196,4 @@ Adopted architecture principles:
 - preserve multimodal provenance.
 - model browser/computer sessions as controllable projected environments.
 - support local and hosted agent execution under one protocol.
+- recenter long-running agents around a continuity substrate that unifies events, patches, graph state, branches, behaviors, capabilities, policies, modalities, devices, and artifacts.

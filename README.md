@@ -29,6 +29,7 @@ Every observation and action keeps its source modality explicit so the agent can
 - `packages/computer-session` - projected computer session control abstractions
 - `apps/hardware-cli` - serial hardware inspection, ping/listen, and validated actuation
 - `docs/architecture.md` - architecture articulation and naming rationale
+- `docs/continuity-kernel.md` - continuity substrate specification, schema, refactor plan, and acceptance criteria
 - `docs/objectives.md` - durable objective ledger for product, hardware, model, and runtime scope
 - `firmware/esp32-head-bridge` - ESP32 firmware for serial JSON frames, analog mux scanning, ADC sampling, and actuator control
 
