@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("exocortex", {
     ipcRenderer.invoke("exocortex:send-modality-action", sessionId, bindingId, actionType, value),
   armActuator: (channel: string, reason: string) => ipcRenderer.invoke("exocortex:arm-actuator", channel, reason),
   listActuatorSafety: () => ipcRenderer.invoke("exocortex:list-actuator-safety"),
+  approveActuatorCommand: (channel: string, value: unknown, reason: string) => ipcRenderer.invoke("exocortex:approve-actuator-command", channel, value, reason),
+  revokeActuatorApproval: (approvalId: string, reason: string) => ipcRenderer.invoke("exocortex:revoke-actuator-approval", approvalId, reason),
   listCalibrationProfiles: () => ipcRenderer.invoke("exocortex:list-calibration-profiles"),
   acceptCalibrationProfile: (profile: unknown, supersedesProfileId?: string) => ipcRenderer.invoke("exocortex:accept-calibration-profile", profile, supersedesProfileId),
   createBrowserSession: (sessionId?: string) => ipcRenderer.invoke("exocortex:create-browser-session", sessionId),

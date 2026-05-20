@@ -96,6 +96,8 @@ const actuatorSafetyGate = ActuatorSafetyGate.fromHeadBridgeConfig(headBridgeCon
       armedAt: object.provenance.createdAt,
       expiresAt: typeof object.data.expiresAt === "string" ? object.data.expiresAt : object.provenance.createdAt
     }))
+}, {
+  requireApprovals: process.env.EXOCORTEX_REQUIRE_ACTUATOR_APPROVALS !== "false"
 });
 for (const policy of actuatorSafetyGate.listPolicies()) {
   acceptSafetyPolicy(eventGraph, {
@@ -263,8 +265,21 @@ ipcMain.handle("exocortex:arm-actuator", (_event, channel: string, reason: strin
 ipcMain.handle("exocortex:list-actuator-safety", () => ({
   policies: actuatorSafetyGate.listPolicies(),
   grants: actuatorSafetyGate.listGrants(),
+  approvals: actuatorSafetyGate.listApprovals(),
+  gateDenials: actuatorSafetyGate.listDenials(),
   denials: listSafetyDenials(eventGraph)
 }));
+ipcMain.handle("exocortex:approve-actuator-command", (_event, channel: string, value: Record<string, unknown>, reason: string) => {
+  const command = validateActuatorCommand(headBridgeConfig, channel, normalizeRecord(value));
+  const approval = actuatorSafetyGate.createApproval(channel, reason || "operator pre-execution approval", {
+    requestedBy: "electron-operator",
+    command
+  });
+  return actuatorSafetyGate.approveApproval(approval.approvalId, "electron-operator", reason || "operator approved command");
+});
+ipcMain.handle("exocortex:revoke-actuator-approval", (_event, approvalId: string, reason: string) =>
+  actuatorSafetyGate.revokeApproval(approvalId, "electron-operator", reason || "operator revoked approval")
+);
 ipcMain.handle("exocortex:list-calibration-profiles", () => listActiveCalibrationProfiles(eventGraph));
 ipcMain.handle("exocortex:accept-calibration-profile", (_event, profile: CalibrationProfile, supersedesProfileId?: string) => {
   validateCalibrationProfile(profile, headBridgeConfig);

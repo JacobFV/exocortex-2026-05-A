@@ -746,7 +746,9 @@ export function renderHtml(): string {
       function renderSafety() {
         const policies = state.safety.policies || [];
         const grants = state.safety.grants || [];
+        const approvals = state.safety.approvals || [];
         const denials = state.safety.denials || [];
+        const gateDenials = state.safety.gateDenials || [];
         const outputBindings = (state.bindings || []).filter(function (binding) {
           return binding.direction === 'output' || binding.direction === 'duplex';
         });
@@ -762,8 +764,17 @@ export function renderHtml(): string {
         const grantRows = grants.map(function (grant) {
           return '<tr><td>' + escapeHtml(grant.channel) + '</td><td>' + escapeHtml(grant.reason) + '</td><td>' + escapeHtml(time(grant.expiresAt)) + '</td></tr>';
         }).join('');
+        const approvalRows = approvals.slice(-40).reverse().map(function (approval) {
+          const revoke = approval.state === 'approved'
+            ? '<button type="button" class="danger" data-action="revoke-approval" data-approval-id="' + escapeHtml(approval.approvalId) + '">Revoke</button>'
+            : '';
+          return '<tr><td>' + escapeHtml(approval.channel) + '<br><span class="muted">' + escapeHtml(shortId(approval.approvalId)) + '</span></td><td>' + escapeHtml(approval.state) + '</td><td>' + escapeHtml(approval.reason || approval.approvalReason || '') + '</td><td>' + escapeHtml(time(approval.expiresAt)) + '</td><td>' + revoke + '</td></tr>';
+        }).join('');
         const denialRows = denials.slice(-40).reverse().map(function (denial) {
           return '<tr><td>' + escapeHtml(denial.data?.channel || '') + '</td><td>' + escapeHtml(denial.data?.reason || '') + '</td><td>' + escapeHtml(time(denial.provenance?.createdAt)) + '</td></tr>';
+        }).join('');
+        const gateDenialRows = gateDenials.slice(-40).reverse().map(function (denial) {
+          return '<tr><td>' + escapeHtml(denial.channel || '') + '</td><td>' + escapeHtml(denial.code || '') + '</td><td>' + escapeHtml(denial.reason || '') + '</td><td>' + escapeHtml(time(denial.occurredAt)) + '</td></tr>';
         }).join('');
         el('#view-safety').innerHTML =
           '<div class="two-col">' +
@@ -778,6 +789,20 @@ export function renderHtml(): string {
                 '<table><thead><tr><th>Channel</th><th>Reason</th><th>Expires</th></tr></thead><tbody>' + (grantRows || '<tr><td colspan="3">No active grants</td></tr>') + '</tbody></table>' +
               '</div>' +
             '</section>' +
+            '<section class="panel">' +
+              '<div class="panel-header"><h2>Pre-execution Approval</h2><span class="pill">' + approvals.length + ' approvals</span></div>' +
+              '<div class="panel-body stack">' +
+                '<div class="three-col">' +
+                  '<label>Channel<select id="approval-channel">' + channelOptions + '</select></label>' +
+                  '<label>Reason<input id="approval-reason" value="operator approved command" /></label>' +
+                  '<label>&nbsp;<button type="button" class="primary" data-action="approve-command">Approve Command</button></label>' +
+                '</div>' +
+                '<label>Command Payload<textarea id="approval-payload">{ "enabled": true, "duty": 0.1 }</textarea></label>' +
+                '<table><thead><tr><th>Channel</th><th>State</th><th>Reason</th><th>Expires</th><th>Action</th></tr></thead><tbody>' + (approvalRows || '<tr><td colspan="5">No approvals</td></tr>') + '</tbody></table>' +
+              '</div>' +
+            '</section>' +
+          '</div>' +
+          '<div class="two-col">' +
             '<section class="panel">' +
               '<div class="panel-header"><h2>Modality Action</h2></div>' +
               '<div class="panel-body stack">' +
@@ -795,6 +820,10 @@ export function renderHtml(): string {
           '<section class="panel">' +
             '<div class="panel-header"><h2>Safety Denials</h2><span class="pill red">' + denials.length + '</span></div>' +
             '<div class="panel-body"><table><thead><tr><th>Channel</th><th>Reason</th><th>At</th></tr></thead><tbody>' + (denialRows || '<tr><td colspan="3">No denials</td></tr>') + '</tbody></table></div>' +
+          '</section>' +
+          '<section class="panel">' +
+            '<div class="panel-header"><h2>Gate Denials</h2><span class="pill red">' + gateDenials.length + '</span></div>' +
+            '<div class="panel-body"><table><thead><tr><th>Channel</th><th>Code</th><th>Reason</th><th>At</th></tr></thead><tbody>' + (gateDenialRows || '<tr><td colspan="4">No gate denials</td></tr>') + '</tbody></table></div>' +
           '</section>';
       }
 
@@ -950,6 +979,18 @@ export function renderHtml(): string {
             const channel = el('#arm-channel').value;
             const reason = el('#arm-reason').value.trim();
             if (channel) await window.exocortex.armActuator(channel, reason);
+            await refresh();
+          }
+          if (action === 'approve-command') {
+            const channel = el('#approval-channel').value;
+            const reason = el('#approval-reason').value.trim();
+            const payload = JSON.parse(el('#approval-payload').value);
+            if (channel) await window.exocortex.approveActuatorCommand(channel, payload, reason);
+            await refresh();
+          }
+          if (action === 'revoke-approval') {
+            const approvalId = button.dataset.approvalId;
+            if (approvalId) await window.exocortex.revokeActuatorApproval(approvalId, 'operator revoked approval');
             await refresh();
           }
           if (action === 'send-action') {

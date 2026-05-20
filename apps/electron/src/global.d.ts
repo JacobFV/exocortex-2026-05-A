@@ -24,6 +24,8 @@ declare global {
       sendModalityAction(sessionId: string, bindingId: string, actionType: string, value: unknown): Promise<unknown>;
       armActuator(channel: string, reason: string): Promise<unknown>;
       listActuatorSafety(): Promise<unknown>;
+      approveActuatorCommand(channel: string, value: unknown, reason: string): Promise<unknown>;
+      revokeActuatorApproval(approvalId: string, reason: string): Promise<unknown>;
       listCalibrationProfiles(): Promise<unknown[]>;
       acceptCalibrationProfile(profile: unknown, supersedesProfileId?: string): Promise<unknown>;
       createBrowserSession(sessionId?: string): Promise<unknown>;
