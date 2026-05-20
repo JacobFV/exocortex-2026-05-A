@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { acceptSafetyGrant, ContinuityKernel, listActiveSafetyGrants, MAIN_BRANCH_ID, SQLiteContinuityStore } from "@exocortex/continuity";
+import { acceptSafetyGrant, acceptSafetyPolicy, ContinuityKernel, listActiveSafetyGrants, MAIN_BRANCH_ID, SQLiteContinuityStore } from "@exocortex/continuity";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import type { AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserSessionId } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/peripherals";
@@ -41,6 +41,14 @@ const actuatorSafetyGate = ActuatorSafetyGate.fromHeadBridgeConfig(headBridgeCon
       expiresAt: typeof node.metadata?.expiresAt === "string" ? node.metadata.expiresAt : node.createdAt
     }))
 });
+for (const policy of actuatorSafetyGate.listPolicies()) {
+  acceptSafetyPolicy(continuityStore, {
+    branchId: MAIN_BRANCH_ID,
+    channel: policy.channel,
+    policy: { ...policy },
+    active: true
+  });
+}
 const headBridgeSerialPath = process.env.EXOCORTEX_HEAD_BRIDGE_SERIAL;
 let headBridgeSource: HeadBridgeSerialSource | undefined;
 if (headBridgeSerialPath) {

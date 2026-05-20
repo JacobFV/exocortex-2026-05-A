@@ -10,7 +10,7 @@ import { SQLiteContinuityStore } from "./sqlite-store.js";
 import { createFailureReviewBehavior, createUnsupportedClaimBehavior } from "./behaviors.js";
 import { diffBranch, proposeBranchMerge } from "./branching.js";
 import { ContinuityCapabilityRegistry } from "./capabilities.js";
-import { acceptCalibrationProfile, acceptSafetyGrant, listActiveCalibrationProfiles, listActiveSafetyGrants } from "./operational-state.js";
+import { acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, listActiveCalibrationProfiles, listActiveSafetyGrants, listActiveSafetyPolicies } from "./operational-state.js";
 import type { ContinuityPatch, ContinuityPatchOp, ContinuityStore } from "./types.js";
 
 const sessionId = createId<"AgentSessionId">("sess");
@@ -120,6 +120,20 @@ async function runStoreContract(store: ContinuityStore): Promise<void> {
   capabilities.setEnabled("main", "tool", "browser_navigate", false, new Date("2026-05-19T00:00:13.000Z"));
   assert.equal(capabilities.listEnabled("main", "tool").length, 0);
   assert.notEqual(capabilities.capabilitySetHash("main"), hashBeforeDisable);
+
+  acceptSafetyPolicy(store, {
+    branchId: "main",
+    channel: "laser_enable",
+    policy: { requiresArm: true, maxDuty: 1 },
+    now: new Date("2026-05-19T00:00:13.500Z")
+  });
+  acceptSafetyPolicy(store, {
+    branchId: "main",
+    channel: "laser_enable",
+    policy: { requiresArm: true, maxDuty: 1 },
+    now: new Date("2026-05-19T00:00:13.750Z")
+  });
+  assert.equal(listActiveSafetyPolicies(store, "main", "laser_enable").length, 1);
 
   acceptCalibrationProfile(store, {
     branchId: "main",

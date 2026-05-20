@@ -23,6 +23,14 @@ export interface ContinuitySafetyGrantInput {
   now?: Date;
 }
 
+export interface ContinuitySafetyPolicyInput {
+  branchId: string;
+  channel: string;
+  policy: Record<string, unknown>;
+  active?: boolean;
+  now?: Date;
+}
+
 export function acceptCalibrationProfile(store: ContinuityStore, input: ContinuityCalibrationProfileInput): ContinuityNode {
   const now = input.now ?? new Date();
   const stableKey = `calibration_profile:${input.deviceKey}:${input.profileId}`;
@@ -164,6 +172,52 @@ export function acceptSafetyGrant(store: ContinuityStore, input: ContinuitySafet
   return node;
 }
 
+export function acceptSafetyPolicy(store: ContinuityStore, input: ContinuitySafetyPolicyInput): ContinuityNode {
+  const now = input.now ?? new Date();
+  const stableKey = `safety_policy:${input.channel}`;
+  const policyHash = stableHash(input.policy);
+  const existing = store.findNodeByStableKey(input.branchId, stableKey);
+  if (existing?.status === "active" && existing.metadata?.policyHash === policyHash && (existing.metadata.active ?? true) === (input.active ?? true)) return existing;
+  const patch = operationalPatch(input.branchId, "safety", stableKey, "Accept safety policy", "high", now);
+  const node = {
+    id: continuityId("node", input.branchId, stableKey),
+    branchId: input.branchId,
+    kind: "policy",
+    stableKey,
+    status: input.active === false ? "archived" : "active",
+    createdByPatchId: patch.id,
+    createdAt: now.toISOString(),
+    metadata: {
+      channel: input.channel,
+      active: input.active ?? true,
+      policyHash,
+      policy: input.policy
+    }
+  } satisfies ContinuityNode;
+  proposePatch(store, patch, [
+    {
+      id: continuityId("op", patch.id, "policy"),
+      patchId: patch.id,
+      op: existing ? "update_node" : "create_node",
+      createdAt: now.toISOString(),
+      payload: {
+        ...node,
+        revision: {
+          id: continuityId("rev", patch.id, stableKey, "v1"),
+          nodeId: node.id,
+          patchId: patch.id,
+          version: 1,
+          title: `Safety policy ${input.channel}`,
+          createdAt: now.toISOString(),
+          metadata: node.metadata
+        }
+      }
+    }
+  ]);
+  acceptPatch(store, patch.id, "continuity-operational-state", now);
+  return node;
+}
+
 export function listActiveCalibrationProfiles(store: ContinuityStore, branchId: string, deviceKey?: string): ContinuityNode[] {
   return store
     .listNodes(branchId)
@@ -181,6 +235,14 @@ export function listActiveSafetyGrants(store: ContinuityStore, branchId: string,
       const expiresAt = node.metadata?.expiresAt;
       return typeof expiresAt !== "string" || Date.parse(expiresAt) >= now.getTime();
     });
+}
+
+export function listActiveSafetyPolicies(store: ContinuityStore, branchId: string, channel?: string): ContinuityNode[] {
+  return store
+    .listNodes(branchId)
+    .filter((node) => node.kind === "policy" && node.stableKey.startsWith("safety_policy:") && node.status === "active")
+    .filter((node) => (node.metadata?.active ?? true) === true)
+    .filter((node) => !channel || node.metadata?.channel === channel);
 }
 
 function operationalPatch(branchId: string, category: string, stableKey: string, reason: string, riskLevel: ContinuityPatch["riskLevel"], now: Date): ContinuityPatch {
