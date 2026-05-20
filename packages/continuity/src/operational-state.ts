@@ -28,6 +28,14 @@ export interface ContinuitySafetyPolicyInput {
   now?: Date;
 }
 
+export interface ContinuitySafetyDenialInput {
+  channel: string;
+  code: string;
+  reason: string;
+  command?: unknown;
+  now?: Date;
+}
+
 export function acceptCalibrationProfile(graph: EventSourcedGraph, input: ContinuityCalibrationProfileInput): GraphObject {
   const stableKey = `calibration_profile:${input.deviceKey}:${input.profileId}`;
   const profile = upsertGraphObject(
@@ -115,6 +123,26 @@ export function acceptSafetyPolicy(graph: EventSourcedGraph, input: ContinuitySa
   );
 }
 
+export function recordSafetyDenial(graph: EventSourcedGraph, input: ContinuitySafetyDenialInput): GraphObject {
+  const now = input.now ?? new Date();
+  const stableKey = `safety_denial:${input.channel}:${now.toISOString()}:${stableHash(input.command ?? input.reason)}`;
+  return upsertGraphObject(
+    graph,
+    stableKey,
+    "safety_denial",
+    {
+      stableKey,
+      channel: input.channel,
+      code: input.code,
+      reason: input.reason,
+      command: input.command,
+      commandHash: input.command === undefined ? undefined : stableHash(input.command)
+    },
+    "continuity-operational-state",
+    now
+  );
+}
+
 export function listActiveCalibrationProfiles(graph: EventSourcedGraph, deviceKey?: string): GraphObject[] {
   return graph
     .findObjects({ type: "calibration_profile" })
@@ -137,6 +165,12 @@ export function listActiveSafetyPolicies(graph: EventSourcedGraph, channel?: str
     .findObjects({ type: "policy" })
     .filter((object) => object.data.policyKind === "safety")
     .filter((object) => (object.data.active ?? true) === true)
+    .filter((object) => !channel || object.data.channel === channel);
+}
+
+export function listSafetyDenials(graph: EventSourcedGraph, channel?: string): GraphObject[] {
+  return graph
+    .findObjects({ type: "safety_denial" })
     .filter((object) => !channel || object.data.channel === channel);
 }
 

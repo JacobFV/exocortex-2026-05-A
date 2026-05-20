@@ -8,11 +8,13 @@ import { EventSourcedGraph } from "./event-graph.js";
 import { EventGraphKernel } from "./event-graph-kernel.js";
 import { InMemoryEventSourcedGraphStore, SQLiteEventSourcedGraphStore } from "./event-graph-store.js";
 import { exportContinuityRun, exportContinuityRunFromStore, readContinuityRunExport, validateContinuityRunExport, writeContinuityRunExport } from "./export.js";
+import { listSafetyDenials, recordSafetyDenial } from "./operational-state.js";
 import { ReactiveGraphRuntime } from "./reactive-runtime.js";
 
 runStorelessGraphContract();
 runKernelIdempotencyContract();
 await runContinuityBehaviorContract();
+runSafetyDenialContract();
 await runStoreContract(new InMemoryEventSourcedGraphStore());
 
 const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-event-graph-"));
@@ -166,6 +168,21 @@ async function runContinuityBehaviorContract(): Promise<void> {
   await runtime.runUntilIdle();
   assert.equal(graph.findObjects({ type: "task" }).length, taskCountAfterFirstPass);
   runtime.close();
+}
+
+function runSafetyDenialContract(): void {
+  const graph = new EventSourcedGraph({ runId: "run_safety_denials", store: new InMemoryEventSourcedGraphStore(), clock: fixedClock("2026-05-20T00:00:00.000Z") });
+  recordSafetyDenial(graph, {
+    channel: "laser_enable",
+    code: "actuator_safety_rejected",
+    reason: "actuator is not armed",
+    command: { enabled: true, duty: 1 },
+    now: new Date("2026-05-20T00:00:00.000Z")
+  });
+  const denials = listSafetyDenials(graph, "laser_enable");
+  assert.equal(denials.length, 1);
+  assert.equal(denials[0]?.data.code, "actuator_safety_rejected");
+  assert.equal(typeof denials[0]?.data.commandHash, "string");
 }
 
 {

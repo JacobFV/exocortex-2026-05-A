@@ -411,7 +411,7 @@ export function renderHtml(): string {
         models: { models: [], health: [] },
         modalities: { devices: [], modalities: [], deviceTypes: [], modalityTypes: [] },
         continuity: { objects: [], relations: [], events: [] },
-        safety: { policies: [], grants: [] },
+        safety: { policies: [], grants: [], denials: [] },
         calibrationProfiles: [],
         browsers: [],
         browserFrame: undefined,
@@ -476,7 +476,7 @@ export function renderHtml(): string {
           ]);
           state.modalities = base[0] || state.modalities;
           state.continuity = { objects: base[1] || [], relations: base[2] || [], events: base[3] || [] };
-          state.safety = base[4] || { policies: [], grants: [] };
+          state.safety = base[4] || { policies: [], grants: [], denials: [] };
           state.browsers = base[5] || [];
           state.models = base[6] || { models: [], health: [] };
           state.calibrationProfiles = base[7] || [];
@@ -687,6 +687,7 @@ export function renderHtml(): string {
       function renderSafety() {
         const policies = state.safety.policies || [];
         const grants = state.safety.grants || [];
+        const denials = state.safety.denials || [];
         const outputBindings = (state.bindings || []).filter(function (binding) {
           return binding.direction === 'output' || binding.direction === 'duplex';
         });
@@ -701,6 +702,9 @@ export function renderHtml(): string {
         }).join('');
         const grantRows = grants.map(function (grant) {
           return '<tr><td>' + escapeHtml(grant.channel) + '</td><td>' + escapeHtml(grant.reason) + '</td><td>' + escapeHtml(time(grant.expiresAt)) + '</td></tr>';
+        }).join('');
+        const denialRows = denials.slice(-40).reverse().map(function (denial) {
+          return '<tr><td>' + escapeHtml(denial.data?.channel || '') + '</td><td>' + escapeHtml(denial.data?.reason || '') + '</td><td>' + escapeHtml(time(denial.provenance?.createdAt)) + '</td></tr>';
         }).join('');
         el('#view-safety').innerHTML =
           '<div class="two-col">' +
@@ -728,6 +732,10 @@ export function renderHtml(): string {
           '<section class="panel">' +
             '<div class="panel-header"><h2>Safety Policies</h2></div>' +
             '<div class="panel-body"><table><thead><tr><th>Channel</th><th>Requires Arm</th><th>Max Duty</th><th>Max Pulse Us</th><th>Min Interval Ms</th></tr></thead><tbody>' + (policyRows || '<tr><td colspan="5">No policies</td></tr>') + '</tbody></table></div>' +
+          '</section>' +
+          '<section class="panel">' +
+            '<div class="panel-header"><h2>Safety Denials</h2><span class="pill red">' + denials.length + '</span></div>' +
+            '<div class="panel-body"><table><thead><tr><th>Channel</th><th>Reason</th><th>At</th></tr></thead><tbody>' + (denialRows || '<tr><td colspan="3">No denials</td></tr>') + '</tbody></table></div>' +
           '</section>';
       }
 

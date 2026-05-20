@@ -5,12 +5,16 @@ export interface ModalityActionSink {
   send(actionType: string, value: unknown): Promise<void>;
 }
 
+export interface ModalityActionRouterOptions {
+  onActionError?: (event: Extract<AgentSessionEvent, { type: "modality.action" }>, error: unknown) => void;
+}
+
 export class ModalityActionRouter {
   private readonly sinks = new Map<ModalityInstanceId, ModalityActionSink>();
   private readonly bindings = new Map<AgentSessionModalityId, AgentSessionModalityBinding>();
   private unsubscribe?: () => void;
 
-  constructor(private readonly sessions: AgentSessionManager) {}
+  constructor(private readonly sessions: AgentSessionManager, private readonly options: ModalityActionRouterOptions = {}) {}
 
   start(): void {
     this.unsubscribe?.();
@@ -39,6 +43,10 @@ export class ModalityActionRouter {
     if (!binding) return;
     const sink = this.sinks.get(binding.modalityInstanceId);
     if (!sink) return;
-    await sink.send(event.actionType, event.value);
+    try {
+      await sink.send(event.actionType, event.value);
+    } catch (error) {
+      this.options.onActionError?.(event, error);
+    }
   }
 }

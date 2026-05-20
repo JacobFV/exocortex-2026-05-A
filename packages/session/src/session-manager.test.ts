@@ -52,7 +52,13 @@ manager.stop(sessionA.id);
 assert.equal(manager.get(sessionA.id)?.state, "stopped");
 
 const actionManager = new AgentSessionManager();
-const actionRouter = new ModalityActionRouter(actionManager);
+const routedErrors: string[] = [];
+const actionRouter = new ModalityActionRouter(actionManager, {
+  onActionError(event, error) {
+    routedErrors.push(error instanceof Error ? error.message : String(error));
+    actionManager.recordSessionError(event.sessionId, "modality_action_failed", routedErrors.at(-1) ?? "unknown", true, event.bindingId);
+  }
+});
 const actionSession = actionManager.create({ goal: "Actuate" });
 const outputBinding = registry.bindToSession({ sessionId: actionSession.id, modalityInstanceId: modalityInstances[0]!.id });
 actionManager.bindModality(actionSession.id, outputBinding);
@@ -68,6 +74,15 @@ actionRouter.start();
 actionManager.act(actionSession.id, outputBinding.id, "actuator.command", { enabled: true });
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.deepEqual(sent, [{ actionType: "actuator.command", value: { enabled: true } }]);
+actionRouter.registerSink(outputBinding.modalityInstanceId, {
+  async send() {
+    throw new Error("sink rejected action");
+  }
+});
+actionManager.act(actionSession.id, outputBinding.id, "actuator.command", { enabled: true });
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.deepEqual(routedErrors, ["sink rejected action"]);
+assert.ok(actionManager.events(actionSession.id).some((event) => event.type === "session.error" && event.code === "modality_action_failed"));
 actionRouter.stop();
 
 class ToolCallingModel implements ChatModel {

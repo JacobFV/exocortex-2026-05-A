@@ -182,6 +182,11 @@ export class AgentSessionManager {
     return this.emit(sessionId, { type: "browser.projection_frame", frame });
   }
 
+  recordSessionError(sessionId: AgentSessionId, code: string, message: string, recoverable = true, modalityId?: AgentSessionModalityId): AgentSessionEvent {
+    this.requireSession(sessionId);
+    return this.emit(sessionId, { type: "session.error", code, message, recoverable, modalityId });
+  }
+
   events(sessionId: AgentSessionId): AgentSessionEvent[] {
     this.requireSession(sessionId);
     return this.store.listEvents(sessionId);

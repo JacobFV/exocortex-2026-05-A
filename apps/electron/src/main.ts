@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BrowserSessionManager } from "@exocortex/browser-session";
-import { type GraphObject, acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveCalibrationProfiles, listActiveSafetyGrants, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
+import { type GraphObject, acceptCalibrationProfile, acceptSafetyGrant, acceptSafetyPolicy, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors, EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, listActiveCalibrationProfiles, listActiveSafetyGrants, listSafetyDenials, recordSafetyDenial, SQLiteEventSourcedGraphStore } from "@exocortex/continuity";
 import { type CalibrationProfile, validateCalibrationProfile } from "@exocortex/calibration";
 import { defaultHeadBridgeConfig, validateActuatorCommand } from "@exocortex/hardware";
 import { ModelRouter } from "@exocortex/models";
@@ -35,7 +35,22 @@ const toolRouter = new AgentToolRouter(
 );
 const sessionManager = new AgentSessionManager({ store: agentSessionStore, runtime: new ModelDrivenAgentRuntime({ models: modelRouter, tools: toolRouter, capabilities: capabilityRegistry }), eventGraphKernel });
 const observationRouter = new ModalityObservationRouter(sessionManager);
-const actionRouter = new ModalityActionRouter(sessionManager);
+const actionRouter = new ModalityActionRouter(sessionManager, {
+  onActionError(event, error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const binding = sessionManager.listBindings(event.sessionId).find((candidate) => candidate.id === event.bindingId);
+    const channel = binding?.key ?? event.bindingId;
+    if (event.actionType === "actuator.command") {
+      recordSafetyDenial(eventGraph, {
+        channel,
+        code: "actuator_action_rejected",
+        reason: message,
+        command: event.value
+      });
+    }
+    sessionManager.recordSessionError(event.sessionId, "modality_action_failed", message, true, event.bindingId);
+  }
+});
 
 sessionManager.subscribe("*", (event) => {
   for (const window of BrowserWindow.getAllWindows()) window.webContents.send("exocortex:session-event", event);
@@ -173,7 +188,8 @@ ipcMain.handle("exocortex:arm-actuator", (_event, channel: string, reason: strin
 });
 ipcMain.handle("exocortex:list-actuator-safety", () => ({
   policies: actuatorSafetyGate.listPolicies(),
-  grants: actuatorSafetyGate.listGrants()
+  grants: actuatorSafetyGate.listGrants(),
+  denials: listSafetyDenials(eventGraph)
 }));
 ipcMain.handle("exocortex:list-calibration-profiles", () => listActiveCalibrationProfiles(eventGraph));
 ipcMain.handle("exocortex:accept-calibration-profile", (_event, profile: CalibrationProfile, supersedesProfileId?: string) => {
