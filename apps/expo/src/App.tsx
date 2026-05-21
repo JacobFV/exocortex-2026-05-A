@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
+import { Button, ScrollView, Text, TextInput, View } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { EventGraphKernel, EventSourcedGraph, InMemoryEventSourcedGraphStore, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "@exocortex/continuity/mobile";
 import { ModalityRegistry } from "@exocortex/modalities/mobile";
 import type { AgentSessionId } from "@exocortex/protocol";
@@ -77,25 +78,27 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#101418" }}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <Text style={{ color: "#eef2f4", fontSize: 28, fontWeight: "700" }}>Exocortex</Text>
-        <TextInput
-          value={goal}
-          onChangeText={setGoal}
-          multiline
-          style={{ minHeight: 92, color: "#eef2f4", borderColor: "#2b333a", borderWidth: 1, padding: 10 }}
-        />
-        <Button title="Start agent session" onPress={startSession} />
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {(["sessions", "events", "modalities", "graph", "artifacts"] as const).map((view) => (
-            <Button key={view} title={view} onPress={() => setSelectedView(view)} />
-          ))}
-        </View>
-        <View style={{ borderColor: "#2b333a", borderWidth: 1, padding: 12 }}>
-          <Text style={{ color: "#eef2f4", fontFamily: "Courier" }}>{JSON.stringify(visibleSnapshot(), null, 2)}</Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#101418" }}>
+        <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+          <Text style={{ color: "#eef2f4", fontSize: 28, fontWeight: "700" }}>Exocortex</Text>
+          <TextInput
+            value={goal}
+            onChangeText={setGoal}
+            multiline
+            style={{ minHeight: 92, color: "#eef2f4", borderColor: "#2b333a", borderWidth: 1, padding: 10 }}
+          />
+          <Button title="Start agent session" onPress={startSession} />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {(["sessions", "events", "modalities", "graph", "artifacts"] as const).map((view) => (
+              <Button key={view} title={view} onPress={() => setSelectedView(view)} />
+            ))}
+          </View>
+          <View style={{ borderColor: "#2b333a", borderWidth: 1, padding: 12 }}>
+            <Text style={{ color: "#eef2f4", fontFamily: "Courier" }}>{JSON.stringify(visibleSnapshot(), null, 2)}</Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
