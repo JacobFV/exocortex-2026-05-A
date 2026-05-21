@@ -62,6 +62,7 @@ The repo currently includes:
 - Operator CLI for continuity run listing, summaries, and export files.
 - Hardware CLI for config, serial inspection, ping/listen, actuation, and calibration operations.
 - Electron push events for session and continuity updates.
+- ESP32-S3 devkit firmware environment supports USB CDC protocol bring-up with configured head I/O disabled.
 
 ## Current Important Commits
 
@@ -112,7 +113,7 @@ The durable backlog is `docs/remaining-work.md`. The highest-leverage next work 
 
 1. Replace inline Electron HTML with a real renderer bundle and browser-level smoke tests.
 2. Build Expo TTS/speaker action sinks plus Expo camera/video/image artifact observation bridges.
-3. Bring up one physical ESP head bridge with `exocortex-hardware bench-smoke`, then validate calibrated samples plus gated actuator output end to end.
+3. Bring up the production head bridge pin map with actual sensors/actuators, then validate calibrated samples plus gated actuator output end to end.
 4. Wire evaluation suites into automated provider/tool/policy execution harnesses.
 5. Add encrypted-at-rest storage options and live checks for configured media commands.
 6. Add richer graph inspection UI with saved filters, object detail drill-down, relation traversal, and frame/evaluation comparison views.
@@ -132,7 +133,15 @@ dd47292 Add runtime context policies and eval suites
 57af0ce Add actuator approval lifecycle
 fb795ae Add opt-in live model smoke check
 b6ca07c Add live modality route controls
+b09e7cd Use runtime SQLite without fallback stores
+a70d634 Make Expo Android bundle mobile-safe
 ```
+
+Latest local hardware validation:
+
+- Flashed ESP32-S3 devkit on `/dev/ttyACM0` with the `esp32s3` PlatformIO environment.
+- `bench-smoke` received `system.pong` plus heartbeat frames with zero framing errors.
+- Android USB testing is still blocked by host enumeration: `adb devices -l` is empty and `lsusb` does not show an Android device.
 
 ## Local Configuration
 

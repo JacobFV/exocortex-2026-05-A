@@ -21,6 +21,17 @@ pio run -d firmware/esp32-head-bridge
 pio run -d firmware/esp32-head-bridge -t upload
 ```
 
+The `esp32s3` environment targets ESP32-S3 boards that expose USB CDC on `/dev/ttyACM*`.
+It is intended for protocol bring-up on a bare devkit, so configured head I/O is disabled
+and the firmware responds to serial ping/heartbeat frames without touching the production
+head pin map:
+
+```sh
+pio run -d firmware/esp32-head-bridge -e esp32s3
+pio run -d firmware/esp32-head-bridge -e esp32s3 -t upload --upload-port /dev/ttyACM0
+node apps/hardware-cli/dist/index.js bench-smoke --port /dev/ttyACM0 --duration-ms 5000
+```
+
 The default pin map is in `include/bridge_config.h` and matches the TypeScript default in `packages/hardware`.
 
 `include/bridge_config.h` is generated from the TypeScript hardware model with:

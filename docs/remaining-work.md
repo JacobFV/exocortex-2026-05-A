@@ -27,6 +27,8 @@ These are implemented and covered by repository validation, but still need produ
 - SQLite forward migrations with versioned migration records and query-index migration steps.
 - Opt-in actuator approval lifecycle in `@exocortex/safety`, plus Electron pre-execution approval UI/API required by default for actuator commands.
 - Hardware CLI `bench-smoke` command for attached ESP/head-bridge validation runs.
+- ESP32-S3 devkit firmware environment with USB CDC serial enabled and configured head I/O disabled for protocol bring-up.
+- Real ESP32-S3 devkit bench smoke passed on `/dev/ttyACM0`: ping, pong, heartbeat frames, zero framing errors.
 - OpenAI-compatible live model smoke passed with the rotated local key.
 - Host media modalities for microphone audio, camera image/video, and speaker audio are registered and bound to sessions.
 - Electron media capture emits modality observations and persisted artifacts; host speaker actions support TTS synthesis and command-backed audio playback.
@@ -55,7 +57,7 @@ These are implemented and covered by repository validation, but still need produ
 
 ### Physical Device Bring-Up
 
-- Run `exocortex-hardware bench-smoke` against actual ESP-class boards, ADCs, analog multiplexers, microphones, speakers, cameras, EEG front ends, ultrasound triggers, headlamps, lasers, and haptics.
+- Run `exocortex-hardware bench-smoke` against the production head bridge pin map with actual ADCs, analog multiplexers, microphones, speakers, cameras, EEG front ends, ultrasound triggers, headlamps, lasers, and haptics.
 - Validate calibrated samples flowing from firmware to serial frames to modality observations to EventGraph evidence.
 - Validate gated actuator actions flowing from session events through safety grants and firmware commands.
 - Add hardware-in-the-loop tests for firmware protocol compatibility, framing error recovery, reconnects, and actuator safety limits.
