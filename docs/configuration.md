@@ -2,6 +2,8 @@
 
 Runtime secrets and machine-specific settings live outside committed source.
 
+Use Node 24 or newer. Durable local storage uses the runtime-provided `node:sqlite` module rather than a native addon, so Node tests and Electron run against the same SQLite implementation.
+
 ## Local Env
 
 Use `config/local/.env` for local-only values. Start from:
@@ -33,8 +35,7 @@ On Linux hosts where Electron's `chrome-sandbox` helper is not owned by root wit
 - `EXOCORTEX_IMAGE_CAPTURE_COMMAND`, `EXOCORTEX_AUDIO_CAPTURE_COMMAND`, and `EXOCORTEX_VIDEO_CAPTURE_COMMAND` register command-backed capture providers.
 - `EXOCORTEX_AUDIO_PLAYBACK_COMMAND` registers command-backed audio playback for host speaker actions.
 - `EXOCORTEX_STT_BRIDGE_ENABLED=1` starts the Electron continuous STT bridge, using configured audio capture and STT providers to feed microphone transcript modalities.
-- `EXOCORTEX_ELECTRON_STORE=auto|sqlite|json` controls Electron persistence. `auto` uses SQLite when the native module can load and falls back to JSON file stores when Electron's native ABI is incompatible.
-- `EXOCORTEX_EVENT_GRAPH_DB`, `EXOCORTEX_AGENT_SESSION_DB`, `EXOCORTEX_EVENT_GRAPH_JSON_DIR`, `EXOCORTEX_AGENT_SESSION_JSON_DIR`, and `EXOCORTEX_ARTIFACT_BLOB_DIR` override durable local storage paths.
+- `EXOCORTEX_EVENT_GRAPH_DB`, `EXOCORTEX_AGENT_SESSION_DB`, and `EXOCORTEX_ARTIFACT_BLOB_DIR` override durable local storage paths.
 
 ## Credential Hygiene
 

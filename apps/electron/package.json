@@ -8,8 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx src/renderer-html.test.ts",
-    "dev": "npm run build && electron dist/main.js",
-    "dev:no-sandbox": "npm run build && electron --no-sandbox dist/main.js"
+    "dev": "npm run build -w @exocortex/continuity && npm run build -w @exocortex/session && npm run build && electron dist/main.js",
+    "dev:no-sandbox": "npm run build -w @exocortex/continuity && npm run build -w @exocortex/session && npm run build && electron --no-sandbox dist/main.js"
   },
   "dependencies": {
     "@exocortex/browser-session": "0.0.0",

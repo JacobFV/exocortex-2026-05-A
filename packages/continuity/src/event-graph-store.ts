@@ -1,7 +1,6 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
-import type { Database as SqliteDatabase, Statement } from "better-sqlite3";
+import { dirname } from "node:path";
 import type { ContinuityEvent, EventSourcedGraphStore } from "./event-graph-types.js";
 
 export const SQLITE_EVENT_GRAPH_SCHEMA_VERSION = 2;
@@ -30,71 +29,18 @@ export class InMemoryEventSourcedGraphStore implements EventSourcedGraphStore {
   }
 }
 
-export class JsonFileEventSourcedGraphStore implements EventSourcedGraphStore {
-  constructor(private readonly rootDir: string) {
-    mkdirSync(rootDir, { recursive: true });
-  }
-
-  appendEvent(event: ContinuityEvent): void {
-    const events = this.listEvents(event.runId);
-    if (events.some((candidate) => candidate.id === event.id || candidate.sequence === event.sequence)) return;
-    this.appendJsonLine(this.eventsPath(event.runId), event);
-  }
-
-  listEvents(runId: string): ContinuityEvent[] {
-    return this.readJsonLines<ContinuityEvent>(this.eventsPath(runId)).sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id));
-  }
-
-  listRuns(): string[] {
-    return readdirSync(this.rootDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .filter((runId) => this.listEvents(runId).length > 0)
-      .sort();
-  }
-
-  transaction<T>(fn: () => T): T {
-    return fn();
-  }
-
-  private eventsPath(runId: string): string {
-    return join(this.rootDir, runId, "events.jsonl");
-  }
-
-  private appendJsonLine(path: string, value: unknown): void {
-    mkdirSync(dirname(path), { recursive: true });
-    const existing = this.safeRead(path);
-    writeFileSync(path, `${existing}${JSON.stringify(value)}\n`, "utf8");
-  }
-
-  private readJsonLines<T>(path: string): T[] {
-    return this.safeRead(path)
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as T);
-  }
-
-  private safeRead(path: string): string {
-    try {
-      return readFileSync(path, "utf8");
-    } catch {
-      return "";
-    }
-  }
-}
-
 export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
   private readonly db: SqliteDatabase;
-  private readonly append: Statement;
-  private readonly list: Statement;
-  private readonly runs: Statement;
+  private readonly append: SqliteStatement;
+  private readonly list: SqliteStatement;
+  private readonly runs: SqliteStatement;
 
   constructor(dbPath: string) {
     if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true });
-    this.db = loadSqliteDatabase()(dbPath);
-    this.db.pragma("foreign_keys = ON");
-    this.db.pragma("busy_timeout = 5000");
-    if (dbPath !== ":memory:") this.db.pragma("journal_mode = WAL");
+    this.db = openSqliteDatabase(dbPath);
+    this.db.exec("PRAGMA foreign_keys = ON");
+    this.db.exec("PRAGMA busy_timeout = 5000");
+    if (dbPath !== ":memory:") this.db.exec("PRAGMA journal_mode = WAL");
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version INTEGER PRIMARY KEY,
@@ -145,7 +91,7 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
   }
 
   transaction<T>(fn: () => T): T {
-    return this.db.transaction(fn)();
+    return runSqliteTransaction(this.db, fn);
   }
 
   private runMigrations(): void {
@@ -171,17 +117,44 @@ export class SQLiteEventSourcedGraphStore implements EventSourcedGraphStore {
     for (const migration of migrations) {
       const applied = this.db.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get(migration.version);
       if (applied) continue;
-      this.db.transaction(() => {
+      runSqliteTransaction(this.db, () => {
         migration.apply();
         this.db.prepare("INSERT INTO schema_migrations (version, name) VALUES (?, ?)").run(migration.version, migration.name);
-      })();
+      });
     }
   }
 }
 
-type BetterSqlite3Factory = (path: string) => SqliteDatabase;
+interface SqliteDatabase {
+  exec(sql: string): void;
+  prepare(sql: string): SqliteStatement;
+  close(): void;
+}
 
-function loadSqliteDatabase(): BetterSqlite3Factory {
+interface SqliteStatement {
+  run(...parameters: unknown[]): unknown;
+  get(...parameters: unknown[]): unknown;
+  all(...parameters: unknown[]): unknown[];
+}
+
+interface SqliteModule {
+  DatabaseSync: new (path: string) => SqliteDatabase;
+}
+
+function openSqliteDatabase(path: string): SqliteDatabase {
   const require = createRequire(import.meta.url);
-  return require("better-sqlite3") as BetterSqlite3Factory;
+  const { DatabaseSync } = require("node:sqlite") as SqliteModule;
+  return new DatabaseSync(path);
+}
+
+function runSqliteTransaction<T>(db: SqliteDatabase, fn: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }

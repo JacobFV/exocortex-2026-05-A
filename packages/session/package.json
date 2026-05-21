@@ -15,10 +15,6 @@
     "@exocortex/continuity": "0.0.0",
     "@exocortex/models": "0.0.0",
     "@exocortex/modalities": "0.0.0",
-    "@exocortex/protocol": "0.0.0",
-    "better-sqlite3": "^12.10.0"
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13"
+    "@exocortex/protocol": "0.0.0"
   }
 }

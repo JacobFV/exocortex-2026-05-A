@@ -8,7 +8,7 @@ import { approveSelfModificationPromotion, compareEvaluationSuiteRuns, compareFr
 import { createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "./event-graph-behaviors.js";
 import { EventSourcedGraph } from "./event-graph.js";
 import { EventGraphKernel } from "./event-graph-kernel.js";
-import { InMemoryEventSourcedGraphStore, JsonFileEventSourcedGraphStore, SQLiteEventSourcedGraphStore } from "./event-graph-store.js";
+import { InMemoryEventSourcedGraphStore, SQLiteEventSourcedGraphStore } from "./event-graph-store.js";
 import type { EventSourcedGraphStore } from "./event-graph-types.js";
 import { exportContinuityRun, exportContinuityRunFromStore, readContinuityRunExport, validateContinuityRunExport, writeContinuityRunExport } from "./export.js";
 import { listSafetyDenials, recordSafetyDenial } from "./operational-state.js";
@@ -20,17 +20,6 @@ runContextEvaluationPromotionContract();
 await runContinuityBehaviorContract();
 runSafetyDenialContract();
 await runStoreContract(new InMemoryEventSourcedGraphStore());
-
-const jsonTempRoot = mkdtempSync(join(tmpdir(), "exocortex-event-graph-json-"));
-try {
-  const jsonStore = new JsonFileEventSourcedGraphStore(jsonTempRoot);
-  await runStoreContract(jsonStore);
-  assert.deepEqual(jsonStore.listRuns(), ["run_contract"]);
-  const reopened = new JsonFileEventSourcedGraphStore(jsonTempRoot);
-  assert.ok(reopened.listEvents("run_contract").length > 0);
-} finally {
-  rmSync(jsonTempRoot, { recursive: true, force: true });
-}
 
 const tempRoot = mkdtempSync(join(tmpdir(), "exocortex-event-graph-"));
 try {

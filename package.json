@@ -5,6 +5,10 @@
   "description": "Wearable exocortex agent runtime with first-class modalities, Expo and Electron hosts.",
   "type": "module",
   "packageManager": "npm@10.0.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=10.0.0"
+  },
   "workspaces": [
     "packages/*",
     "apps/*"

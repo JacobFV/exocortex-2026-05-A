@@ -1,8 +1,7 @@
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import type { AgentSessionArtifact, AgentSessionEvent, AgentSessionId } from "@exocortex/protocol";
-import type { Database as SqliteDatabase, Statement } from "better-sqlite3";
 
 export interface AgentSessionStore {
   appendEvent(event: AgentSessionEvent): void;
@@ -41,64 +40,6 @@ export class InMemoryAgentSessionStore implements AgentSessionStore {
   }
 }
 
-export class JsonFileAgentSessionStore implements AgentSessionStore {
-  constructor(private readonly rootDir: string) {
-    mkdirSync(rootDir, { recursive: true });
-  }
-
-  appendEvent(event: AgentSessionEvent): void {
-    this.appendJsonLine(this.eventsPath(event.sessionId), event);
-  }
-
-  listSessionIds(): AgentSessionId[] {
-    return readdirSync(this.rootDir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name as AgentSessionId)
-      .filter((sessionId) => this.listEvents(sessionId).length > 0);
-  }
-
-  listEvents(sessionId: AgentSessionId): AgentSessionEvent[] {
-    return this.readJsonLines<AgentSessionEvent>(this.eventsPath(sessionId));
-  }
-
-  putArtifact(artifact: AgentSessionArtifact): void {
-    this.appendJsonLine(this.artifactsPath(artifact.sessionId), artifact);
-  }
-
-  listArtifacts(sessionId: AgentSessionId): AgentSessionArtifact[] {
-    return this.readJsonLines<AgentSessionArtifact>(this.artifactsPath(sessionId));
-  }
-
-  private eventsPath(sessionId: AgentSessionId): string {
-    return join(this.rootDir, sessionId, "events.jsonl");
-  }
-
-  private artifactsPath(sessionId: AgentSessionId): string {
-    return join(this.rootDir, sessionId, "artifacts.jsonl");
-  }
-
-  private appendJsonLine(path: string, value: unknown): void {
-    mkdirSync(dirname(path), { recursive: true });
-    const existing = this.safeRead(path);
-    writeFileSync(path, `${existing}${JSON.stringify(value)}\n`, "utf8");
-  }
-
-  private readJsonLines<T>(path: string): T[] {
-    return this.safeRead(path)
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => JSON.parse(line) as T);
-  }
-
-  private safeRead(path: string): string {
-    try {
-      return readFileSync(path, "utf8");
-    } catch {
-      return "";
-    }
-  }
-}
-
 export interface SQLiteAgentSessionStoreOptions {
   readonly wal?: boolean;
 }
@@ -115,20 +56,20 @@ interface SerializedAgentSessionArtifactRow {
 
 export class SQLiteAgentSessionStore implements AgentSessionStore {
   private readonly db: SqliteDatabase;
-  private readonly appendEventStatement: Statement;
-  private readonly listSessionIdsStatement: Statement;
-  private readonly listEventsStatement: Statement;
-  private readonly putArtifactStatement: Statement;
-  private readonly listArtifactsStatement: Statement;
+  private readonly appendEventStatement: SqliteStatement;
+  private readonly listSessionIdsStatement: SqliteStatement;
+  private readonly listEventsStatement: SqliteStatement;
+  private readonly putArtifactStatement: SqliteStatement;
+  private readonly listArtifactsStatement: SqliteStatement;
 
   constructor(dbPath: string, options: SQLiteAgentSessionStoreOptions = {}) {
     if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true });
 
-    this.db = loadSqliteDatabase()(dbPath);
-    this.db.pragma("foreign_keys = ON");
-    this.db.pragma("busy_timeout = 5000");
-    this.db.pragma("synchronous = NORMAL");
-    if (options.wal ?? dbPath !== ":memory:") this.db.pragma("journal_mode = WAL");
+    this.db = openSqliteDatabase(dbPath);
+    this.db.exec("PRAGMA foreign_keys = ON");
+    this.db.exec("PRAGMA busy_timeout = 5000");
+    this.db.exec("PRAGMA synchronous = NORMAL");
+    if (options.wal ?? dbPath !== ":memory:") this.db.exec("PRAGMA journal_mode = WAL");
 
     this.initializeSchema();
     this.runMigrations();
@@ -267,10 +208,10 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
     for (const migration of migrations) {
       const applied = this.db.prepare("SELECT 1 FROM schema_migrations WHERE version = ?").get(migration.version);
       if (applied) continue;
-      this.db.transaction(() => {
+      runSqliteTransaction(this.db, () => {
         migration.apply();
         this.db.prepare("INSERT INTO schema_migrations (version, name) VALUES (?, ?)").run(migration.version, migration.name);
-      })();
+      });
     }
   }
 
@@ -286,11 +227,38 @@ export class SQLiteAgentSessionStore implements AgentSessionStore {
   }
 }
 
-type BetterSqlite3Factory = (path: string) => SqliteDatabase;
+interface SqliteDatabase {
+  exec(sql: string): void;
+  prepare(sql: string): SqliteStatement;
+  close(): void;
+}
 
-function loadSqliteDatabase(): BetterSqlite3Factory {
+interface SqliteStatement {
+  run(...parameters: unknown[]): unknown;
+  get(...parameters: unknown[]): unknown;
+  all(...parameters: unknown[]): unknown[];
+}
+
+interface SqliteModule {
+  DatabaseSync: new (path: string) => SqliteDatabase;
+}
+
+function openSqliteDatabase(path: string): SqliteDatabase {
   const require = createRequire(import.meta.url);
-  return require("better-sqlite3") as BetterSqlite3Factory;
+  const { DatabaseSync } = require("node:sqlite") as SqliteModule;
+  return new DatabaseSync(path);
+}
+
+function runSqliteTransaction<T>(db: SqliteDatabase, fn: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 export type AgentSessionEventListener = (event: AgentSessionEvent) => void;

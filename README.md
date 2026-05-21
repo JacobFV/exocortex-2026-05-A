@@ -47,11 +47,13 @@ npm run dev:electron
 npm run dev:expo
 ```
 
+Use Node 24 or newer. The durable stores use the runtime-provided `node:sqlite` module so Node, Electron, and tests share one SQLite implementation without native addon rebuilds.
+
 Local-only secrets and machine paths should live in `config/local/.env`, not in a root `.env` and not in Git. Start from `config/examples/env.example`; see `docs/configuration.md`.
 
 The reference repository is expected to live at `refs/command-agi-gamma`. It is ignored by Git and should not be committed.
 
-The session package includes in-memory, JSONL file-backed, and SQLite-backed stores for durable event/artifact logs plus an event bus for host subscriptions.
+The session package includes in-memory and SQLite-backed stores for durable event/artifact logs plus an event bus for host subscriptions.
 
 `@exocortex/media` can register local capture providers from host commands via `EXOCORTEX_IMAGE_CAPTURE_COMMAND`, `EXOCORTEX_AUDIO_CAPTURE_COMMAND`, and `EXOCORTEX_VIDEO_CAPTURE_COMMAND`. Pass JSON argument arrays in the matching `_ARGS` variables and use `{output}`, `{durationMs}`, `{durationSeconds}`, or `{deviceId}` placeholders for command templates.
 
