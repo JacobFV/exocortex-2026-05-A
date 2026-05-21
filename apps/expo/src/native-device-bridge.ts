@@ -1,5 +1,5 @@
 import type { ModalityInstance } from "@exocortex/protocol";
-import type { ModalityBridge, ModalityObservation } from "@exocortex/modalities";
+import type { ModalityBridge, ModalityObservation } from "@exocortex/modalities/mobile";
 
 export type ExpoPermissionStatus = "granted" | "denied" | "undetermined";
 

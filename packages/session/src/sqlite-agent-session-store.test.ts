@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AgentSessionArtifactId, type AgentSessionEventId, type AgentSessionId } from "@exocortex/protocol";
 import { ModalityRegistry } from "@exocortex/modalities";
-import { SQLiteAgentSessionStore } from "./event-store.js";
+import { SQLiteAgentSessionStore } from "./sqlite-agent-session-store.js";
 import { FileArtifactBlobStore } from "./artifact-blob-store.js";
 import { AgentSessionManager } from "./session-manager.js";
 

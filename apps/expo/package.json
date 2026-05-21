@@ -14,12 +14,11 @@
     "@exocortex/modalities": "0.0.0",
     "@exocortex/protocol": "0.0.0",
     "@exocortex/session": "0.0.0",
-    "electron": "^42.2.0",
     "expo": "^55.0.25",
-    "react": "^19.2.6",
-    "react-native": "^0.85.3"
+    "react": "19.2.0",
+    "react-native": "0.83.6"
   },
   "devDependencies": {
-    "@types/react": "^19.2.6"
+    "@types/react": "~19.2.10"
   }
 }

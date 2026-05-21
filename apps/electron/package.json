@@ -23,11 +23,7 @@
     "@exocortex/safety": "0.0.0",
     "@exocortex/session": "0.0.0",
     "@exocortex/transports": "0.0.0",
-    "@types/react": "^19.2.6",
-    "electron": "^42.2.0",
-    "expo": "^55.0.25",
-    "react": "^19.2.6",
-    "react-native": "^0.85.3"
+    "electron": "^42.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.12"

@@ -1,7 +1,7 @@
 import {
   MAIN_RUN_ID,
   type EventGraphKernel
-} from "@exocortex/continuity";
+} from "@exocortex/continuity/mobile";
 import {
   createId,
   type AgentRuntimeRef,
@@ -19,7 +19,7 @@ import {
 } from "@exocortex/protocol";
 import type { ModalityBindingPolicy } from "@exocortex/protocol";
 import type { AgentRuntime } from "./agent-runtime.js";
-import { ModelDrivenAgentRuntime } from "./agent-runtime.js";
+import { LocalAgentRuntime } from "./agent-runtime.js";
 import type { AgentSessionEventListener, AgentSessionStore } from "./event-store.js";
 import { AgentSessionEventBus, InMemoryAgentSessionStore } from "./event-store.js";
 
@@ -50,7 +50,7 @@ export class AgentSessionManager {
 
   constructor(options: AgentSessionManagerOptions = {}) {
     this.store = options.store ?? new InMemoryAgentSessionStore();
-    this.runtime = options.runtime ?? new ModelDrivenAgentRuntime();
+    this.runtime = options.runtime ?? new LocalAgentRuntime();
     this.eventGraphKernel = options.eventGraphKernel;
     this.restorePersistedSessions();
   }

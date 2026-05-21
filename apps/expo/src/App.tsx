@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
-import { EventGraphKernel, EventSourcedGraph, InMemoryEventSourcedGraphStore, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "@exocortex/continuity";
-import { ModalityRegistry } from "@exocortex/modalities";
+import { EventGraphKernel, EventSourcedGraph, InMemoryEventSourcedGraphStore, createDefaultContinuityBehaviors, createDefaultContinuityRelationBehaviors } from "@exocortex/continuity/mobile";
+import { ModalityRegistry } from "@exocortex/modalities/mobile";
 import type { AgentSessionId } from "@exocortex/protocol";
-import { AgentSessionManager, ModalityObservationRouter } from "@exocortex/session";
+import { AgentSessionManager, ModalityObservationRouter } from "@exocortex/session/mobile";
 import { createExpoNativeDeviceBridges } from "./native-device-bridge";
 
 export default function App() {

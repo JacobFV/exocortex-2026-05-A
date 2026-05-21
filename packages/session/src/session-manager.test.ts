@@ -4,7 +4,8 @@ import { EventGraphCapabilityRegistry, EventGraphKernel, EventSourcedGraph, InMe
 import type { ChatModel, ChatRequest, ChatStreamEvent } from "@exocortex/models";
 import { ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ModelRouter } from "@exocortex/models";
-import { ModelDrivenAgentRuntime, type AgentRuntimeContext } from "./agent-runtime.js";
+import type { AgentRuntimeContext } from "./agent-runtime.js";
+import { ModelDrivenAgentRuntime } from "./model-driven-agent-runtime.js";
 import { createBrowserAgentTools } from "./browser-tools.js";
 import { ModalityActionRouter, type ModalityActionSink } from "./modality-action-router.js";
 import { ModalityObservationRouter } from "./modality-router.js";

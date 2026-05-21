@@ -10,7 +10,8 @@ import { ModelRouter } from "@exocortex/models";
 import type { AgentSession, AgentSessionArtifact, AgentSessionId, AgentSessionModalityId, BrowserAction, BrowserProjectionFrame, BrowserSessionId, ModalityBindingPolicy, ModalityInstance } from "@exocortex/protocol";
 import { HeadBridgeSerialSource, ManualInputBridge, ModalityRegistry } from "@exocortex/modalities";
 import { ActuatorSafetyGate } from "@exocortex/safety";
-import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, FileArtifactBlobStore, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter, SQLiteAgentSessionStore } from "@exocortex/session";
+import { AgentSessionManager, AgentToolRouter, createBrowserAgentTools, FileArtifactBlobStore, ModelDrivenAgentRuntime, ModalityActionRouter, ModalityObservationRouter } from "@exocortex/session";
+import { SQLiteAgentSessionStore } from "@exocortex/session/sqlite";
 import { ElectronBrowserController } from "./electron-browser-controller.js";
 import { renderHtml } from "./renderer-html.js";
 
